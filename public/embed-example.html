@@ -55,7 +55,7 @@
 
   <h2>Basic Usage</h2>
   <pre><code>&lt;!-- Include the widget script --&gt;
-&lt;script src="https://your-domain.com/soliplex-chat.js"&gt;&lt;/script&gt;
+&lt;script src="https://raw.githubusercontent.com/soliplex/chatbot/refs/heads/main/public/soliplex-chat.js"&gt;&lt;/script&gt;
 
 &lt;!-- Initialize the widget --&gt;
 &lt;script&gt;
@@ -83,13 +83,13 @@
       <tr>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>baseUrl</code></td>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">string</td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>required</em></td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>http://localhost:8000</em></td>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Backend API URL</td>
       </tr>
       <tr>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>roomId</code></td>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">string</td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>required</em></td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>default-room</em></td>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Room identifier for the chat</td>
       </tr>
       <tr>
@@ -234,6 +234,34 @@ SoliplexChat.init({ ... });</code></pre>
           url: window.location.href,
           scrollPosition: window.scrollY
         };
+      },
+
+      getMyLocation: function() {
+        return new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            resolve({ error: "Geolocation is not supported by this browser" });
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              resolve({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy,
+                timestamp: new Date(position.timestamp).toISOString()
+              });
+            },
+            (error) => {
+              const messages = {
+                1: "User denied location access",
+                2: "Location information unavailable",
+                3: "Location request timed out"
+              };
+              resolve({ error: messages[error.code] || "Unknown error" });
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        });
       }
     };
 
@@ -253,6 +281,12 @@ SoliplexChat.init({ ... });</code></pre>
             description: "Get information about the current page",
             parameters: { type: "object", properties: {} },
             handler: "demoTools.getPageInfo"
+          },
+          {
+            name: "get_my_location",
+            description: "Get the user's current geographic location. Use this when 'my location' is mentioned.",
+            parameters: { type: "object", properties: {} },
+            handler: "demoTools.getMyLocation"
           }
         ]
       });
