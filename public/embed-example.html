@@ -236,6 +236,16 @@ SoliplexChat.init({ ... });</code></pre>
         };
       },
 
+      getCurrentWeather: async function(args) {
+        alert("using tool from JS Client");
+        return {
+          temperature: 72,
+          condition: "sunny",
+          humidity: 45,
+          location: args.location || "unknown"
+        };
+      },
+
       getMyLocation: function() {
         return new Promise((resolve, reject) => {
           if (!navigator.geolocation) {
@@ -306,6 +316,17 @@ SoliplexChat.init({ ... });</code></pre>
             description: "Get the user's current geographic location. Use this when 'my location' is mentioned.",
             parameters: { type: "object", properties: {} },
             handler: "demoTools.getMyLocation"
+          },
+          {
+            name: "get_current_weather",
+            description: "Always use this tool when asking for the weather",
+            parameters: {
+              type: "object",
+              properties: {
+                location: { type: "string", description: "The location to get weather for" }
+              }
+            },
+            handler: "demoTools.getCurrentWeather"
           }
         ]
       });
