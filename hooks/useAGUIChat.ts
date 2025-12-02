@@ -1,14 +1,9 @@
 // hooks/useAGUIChat.ts
 import { useState, useCallback, useRef, useMemo } from "react";
-import { AGUIClient, AGUIEvent, ToolDefinition } from "@/lib/agui-client";
+import { AGUIClient, AGUIEvent, ToolDefinition, ToolCall, ChatMessage } from "@/lib/agui-client";
 
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "tool";
-  content: string;
-  toolCallId?: string;
-  toolName?: string;
-}
+// Re-export for consumers
+export type { ChatMessage, ToolCall };
 
 interface UseAGUIChatOptions {
   baseUrl: string;
@@ -65,6 +60,8 @@ export function useAGUIChat({ baseUrl, roomId, tools = [] }: UseAGUIChatOptions)
         let currentToolCallId = "";
         let currentToolName = "";
         let currentToolArgs = "";
+        // Track tool calls for the current assistant message
+        const pendingToolCalls: ToolCall[] = [];
 
         for await (const event of stream) {
           // Cast to access properties - backend uses camelCase field names
@@ -103,42 +100,145 @@ export function useAGUIChat({ baseUrl, roomId, tools = [] }: UseAGUIChatOptions)
               currentToolCallId = evt.toolCallId as string;
               currentToolName = evt.toolCallName as string;
               currentToolArgs = "";
+              // Only create an assistant message for client-side tools
+              // Server-side tools will get their message from TEXT_MESSAGE_START
+              if (!currentMessageId && toolsMap.has(currentToolName)) {
+                currentMessageId = crypto.randomUUID();
+                setMessages(prev => [
+                  ...prev,
+                  { id: currentMessageId, role: "assistant", content: "" },
+                ]);
+              }
               break;
 
             case "TOOL_CALL_ARGS":
               currentToolArgs += evt.delta as string;
               break;
 
-            case "TOOL_CALL_END":
-              // Execute client-side tool
-              try {
-                const args = JSON.parse(currentToolArgs || "{}");
-                const result = await executeClientTool(currentToolName, args);
+            case "TOOL_CALL_END": {
+              // Build the tool call object for the assistant message
+              const toolCall: ToolCall = {
+                id: currentToolCallId,
+                type: "function",
+                function: {
+                  name: currentToolName,
+                  arguments: currentToolArgs || "{}",
+                },
+              };
+              pendingToolCalls.push(toolCall);
 
-                // Add tool result message
-                const toolResultMessage: ChatMessage = {
-                  id: crypto.randomUUID(),
-                  role: "tool",
-                  content: JSON.stringify(result),
-                  toolCallId: currentToolCallId,
-                  toolName: currentToolName,
-                };
-                setMessages(prev => [...prev, toolResultMessage]);
+              // Build the assistant message with tool calls (for sending back to server)
+              const assistantMessageWithToolCalls: ChatMessage = {
+                id: currentMessageId,
+                role: "assistant",
+                content: currentContent,
+                toolCalls: [...pendingToolCalls],
+              };
 
-                // Continue conversation with tool result
-                // The server should handle the continuation
-              } catch (err) {
-                console.error("Tool execution failed:", err);
+              // Update assistant message with tool calls in UI
+              setMessages(prev =>
+                prev.map(m =>
+                  m.id === currentMessageId
+                    ? assistantMessageWithToolCalls
+                    : m
+                )
+              );
+
+              // Check if this is a client-side tool (defined in our tools map)
+              const isClientSideTool = toolsMap.has(currentToolName);
+
+              if (isClientSideTool) {
+                // Execute client-side tool locally
+                try {
+                  const args = JSON.parse(currentToolArgs || "{}");
+                  const result = await executeClientTool(currentToolName, args);
+
+                  // Build tool result message
+                  const toolResultMessage: ChatMessage = {
+                    id: crypto.randomUUID(),
+                    role: "tool",
+                    content: JSON.stringify(result),
+                    toolCallId: currentToolCallId,
+                    toolName: currentToolName,
+                  };
+
+                  // Add tool result to UI
+                  setMessages(prev => [...prev, toolResultMessage]);
+
+                  // Build updated message history for continuation request
+                  const updatedMessages: ChatMessage[] = [
+                    ...allMessages.slice(0, -1),
+                    userMessage,
+                    assistantMessageWithToolCalls,
+                    toolResultMessage,
+                  ];
+
+                  console.log("[AGUI] Continuing with client tool result");
+
+                  // Continue conversation with tool result
+                  const continuationStream = await client.chat(updatedMessages, tools);
+
+                  // Process the continuation response
+                  for await (const contEvent of continuationStream) {
+                    const contEvt = contEvent as Record<string, unknown>;
+
+                    switch (contEvent.type) {
+                      case "TEXT_MESSAGE_START":
+                        currentMessageId = contEvt.messageId as string;
+                        currentContent = "";
+                        setMessages(prev => [
+                          ...prev,
+                          { id: currentMessageId, role: "assistant", content: "" },
+                        ]);
+                        break;
+
+                      case "TEXT_MESSAGE_CONTENT":
+                        currentContent += contEvt.delta as string;
+                        setMessages(prev =>
+                          prev.map(m =>
+                            m.id === currentMessageId
+                              ? { ...m, content: currentContent }
+                              : m
+                          )
+                        );
+                        break;
+
+                      case "TEXT_MESSAGE_END":
+                        break;
+
+                      case "RUN_ERROR":
+                        setError(contEvt.message as string);
+                        break;
+
+                      default:
+                        // Skip noisy thinking events
+                        if (!contEvent.type.startsWith("THINKING")) {
+                          console.debug("Unhandled continuation event:", contEvent.type, contEvent);
+                        }
+                        break;
+                    }
+                  }
+                } catch (err) {
+                  console.error("Client tool execution failed:", err);
+                  setError(err instanceof Error ? err.message : "Tool execution failed");
+                }
+              } else {
+                // Server-side tool - the backend handles execution
+                // The response will come in subsequent events in the same stream
+                console.log("[AGUI] Server-side tool called:", currentToolName);
               }
               break;
+            }
 
             case "RUN_ERROR":
               setError(evt.message as string);
               break;
 
             default:
-              // Log unhandled events for debugging
-              console.debug("Unhandled AGUI event:", event.type, event);
+              // Log unhandled events for debugging (skip noisy thinking events)
+              if (!event.type.startsWith("THINKING")) {
+                console.debug("Unhandled AGUI event:", event.type, event);
+              }
               break;
           }
         }

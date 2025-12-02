@@ -1,11 +1,595 @@
 // components/Chat.tsx
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import { useAGUIChat, ChatMessage } from "@/hooks/useAGUIChat";
 import { ToolDefinition } from "@/lib/agui-client";
 
-// Client-side tool definitions
+// =============================================================================
+// STYLES - Injected CSS with CSS Custom Properties for theming
+// =============================================================================
+
+let stylesInjected = false;
+function injectStyles() {
+  if (stylesInjected || typeof document === "undefined") return;
+  stylesInjected = true;
+
+  const style = document.createElement("style");
+  style.id = "soliplex-chat-styles";
+  style.textContent = `
+    /* CSS Custom Properties for theming */
+    .soliplex-chat {
+      --chat-primary: #6366f1;
+      --chat-primary-hover: #4f46e5;
+      --chat-primary-light: rgba(99, 102, 241, 0.1);
+      --chat-secondary: #8b5cf6;
+      --chat-success: #10b981;
+      --chat-error: #ef4444;
+      --chat-warning: #f59e0b;
+
+      --chat-bg: #ffffff;
+      --chat-bg-secondary: #f8fafc;
+      --chat-bg-tertiary: #f1f5f9;
+
+      --chat-text: #0f172a;
+      --chat-text-secondary: #64748b;
+      --chat-text-muted: #94a3b8;
+
+      --chat-border: #e2e8f0;
+      --chat-border-light: #f1f5f9;
+
+      --chat-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+      --chat-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+      --chat-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+      --chat-radius-sm: 6px;
+      --chat-radius: 12px;
+      --chat-radius-lg: 16px;
+      --chat-radius-full: 9999px;
+
+      --chat-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      --chat-font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+
+      --chat-transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --chat-transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Container */
+    .soliplex-chat {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      background: var(--chat-bg);
+      font-family: var(--chat-font);
+      color: var(--chat-text);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Header */
+    .soliplex-chat-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, var(--chat-primary) 0%, var(--chat-secondary) 100%);
+      color: white;
+      border-bottom: 1px solid transparent;
+    }
+
+    .soliplex-chat-header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+
+    .soliplex-chat-header-icon {
+      width: 20px;
+      height: 20px;
+      opacity: 0.9;
+    }
+
+    .soliplex-chat-header-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
+      border-radius: var(--chat-radius-sm);
+      cursor: pointer;
+      transition: all var(--chat-transition);
+      color: white;
+    }
+
+    .soliplex-chat-header-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: scale(1.05);
+    }
+
+    .soliplex-chat-header-btn:active {
+      transform: scale(0.95);
+    }
+
+    .soliplex-chat-header-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Messages Container */
+    .soliplex-chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+
+    .soliplex-chat-messages::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .soliplex-chat-messages::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .soliplex-chat-messages::-webkit-scrollbar-thumb {
+      background: var(--chat-border);
+      border-radius: var(--chat-radius-full);
+    }
+
+    .soliplex-chat-messages::-webkit-scrollbar-thumb:hover {
+      background: var(--chat-text-muted);
+    }
+
+    /* Empty State */
+    .soliplex-chat-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      text-align: center;
+      color: var(--chat-text-muted);
+      padding: 40px 20px;
+    }
+
+    .soliplex-chat-empty-icon {
+      width: 56px;
+      height: 56px;
+      margin-bottom: 16px;
+      padding: 14px;
+      background: var(--chat-bg-tertiary);
+      border-radius: var(--chat-radius-lg);
+      color: var(--chat-text-muted);
+    }
+
+    .soliplex-chat-empty-icon svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    .soliplex-chat-empty-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--chat-text-secondary);
+      margin-bottom: 6px;
+    }
+
+    .soliplex-chat-empty-subtitle {
+      font-size: 13px;
+      color: var(--chat-text-muted);
+      max-width: 240px;
+    }
+
+    /* Message Base */
+    .soliplex-msg {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      max-width: 85%;
+      animation: soliplex-msg-in 0.25s ease-out;
+    }
+
+    @keyframes soliplex-msg-in {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .soliplex-msg-user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .soliplex-msg-assistant {
+      align-self: flex-start;
+    }
+
+    /* Avatar */
+    .soliplex-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--chat-radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, var(--chat-primary) 0%, var(--chat-secondary) 100%);
+      color: white;
+      box-shadow: var(--chat-shadow-sm);
+    }
+
+    .soliplex-avatar svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    .soliplex-avatar-user {
+      background: linear-gradient(135deg, var(--chat-success) 0%, #059669 100%);
+    }
+
+    /* Message Bubble */
+    .soliplex-bubble {
+      padding: 12px 16px;
+      border-radius: var(--chat-radius-lg);
+      line-height: 1.6;
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    .soliplex-bubble-user {
+      background: linear-gradient(135deg, var(--chat-primary) 0%, var(--chat-secondary) 100%);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .soliplex-bubble-assistant {
+      background: var(--chat-bg-secondary);
+      color: var(--chat-text);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--chat-border-light);
+    }
+
+    .soliplex-bubble p {
+      margin: 0;
+      white-space: pre-wrap;
+    }
+
+    /* Markdown-like styling in assistant bubbles */
+    .soliplex-bubble-assistant code {
+      background: var(--chat-bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--chat-font-mono);
+      font-size: 13px;
+    }
+
+    .soliplex-bubble-assistant pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 12px 14px;
+      border-radius: var(--chat-radius);
+      overflow-x: auto;
+      margin: 8px 0;
+      font-family: var(--chat-font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .soliplex-bubble-assistant pre code {
+      background: none;
+      padding: 0;
+      color: inherit;
+    }
+
+    .soliplex-bubble-assistant strong {
+      font-weight: 600;
+    }
+
+    .soliplex-bubble-assistant em {
+      font-style: italic;
+    }
+
+    .soliplex-bubble-assistant ul, .soliplex-bubble-assistant ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .soliplex-bubble-assistant li {
+      margin: 4px 0;
+    }
+
+    /* Tool Message */
+    .soliplex-tool-msg {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      margin-left: 42px;
+      max-width: calc(85% - 42px);
+      animation: soliplex-msg-in 0.25s ease-out;
+    }
+
+    .soliplex-tool-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 1px solid #fcd34d;
+      border-radius: var(--chat-radius-full);
+      font-size: 12px;
+      font-weight: 500;
+      color: #92400e;
+    }
+
+    .soliplex-tool-badge svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    .soliplex-tool-output {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 10px 14px;
+      border-radius: var(--chat-radius);
+      font-size: 12px;
+      font-family: var(--chat-font-mono);
+      overflow-x: auto;
+      margin: 0;
+      max-width: 100%;
+      box-shadow: var(--chat-shadow-sm);
+    }
+
+    /* Typing Indicator */
+    .soliplex-typing {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: soliplex-msg-in 0.25s ease-out;
+    }
+
+    .soliplex-typing-bubble {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--chat-bg-secondary);
+      padding: 14px 18px;
+      border-radius: var(--chat-radius-lg);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--chat-border-light);
+    }
+
+    .soliplex-typing-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--chat-text-muted);
+      border-radius: var(--chat-radius-full);
+      animation: soliplex-typing 1.4s infinite;
+    }
+
+    .soliplex-typing-dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .soliplex-typing-dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes soliplex-typing {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+      }
+      30% {
+        transform: translateY(-6px);
+        opacity: 1;
+      }
+    }
+
+    /* Error Alert */
+    .soliplex-error {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 14px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: var(--chat-radius);
+      color: #dc2626;
+      font-size: 13px;
+      animation: soliplex-msg-in 0.25s ease-out;
+    }
+
+    .soliplex-error svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    /* Input Form */
+    .soliplex-input-form {
+      padding: 16px 20px;
+      background: var(--chat-bg);
+      border-top: 1px solid var(--chat-border-light);
+    }
+
+    .soliplex-input-wrapper {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      background: var(--chat-bg-secondary);
+      border: 2px solid var(--chat-border);
+      border-radius: var(--chat-radius-lg);
+      padding: 6px 6px 6px 14px;
+      transition: all var(--chat-transition);
+    }
+
+    .soliplex-input-wrapper:focus-within {
+      border-color: var(--chat-primary);
+      box-shadow: 0 0 0 3px var(--chat-primary-light);
+      background: var(--chat-bg);
+    }
+
+    .soliplex-input {
+      flex: 1;
+      border: none;
+      background: transparent;
+      resize: none;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 8px 0;
+      outline: none;
+      font-family: var(--chat-font);
+      color: var(--chat-text);
+      min-height: 24px;
+      max-height: 120px;
+    }
+
+    .soliplex-input::placeholder {
+      color: var(--chat-text-muted);
+    }
+
+    .soliplex-input:disabled {
+      opacity: 0.6;
+    }
+
+    .soliplex-send-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border: none;
+      border-radius: var(--chat-radius);
+      background: linear-gradient(135deg, var(--chat-primary) 0%, var(--chat-secondary) 100%);
+      color: white;
+      cursor: pointer;
+      transition: all var(--chat-transition);
+      flex-shrink: 0;
+    }
+
+    .soliplex-send-btn:hover:not(:disabled) {
+      transform: scale(1.05);
+      box-shadow: var(--chat-shadow);
+    }
+
+    .soliplex-send-btn:active:not(:disabled) {
+      transform: scale(0.95);
+    }
+
+    .soliplex-send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: var(--chat-border);
+    }
+
+    .soliplex-send-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .soliplex-input-hint {
+      font-size: 11px;
+      color: var(--chat-text-muted);
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* Spinner */
+    .soliplex-spinner {
+      width: 18px;
+      height: 18px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: var(--chat-radius-full);
+      animation: soliplex-spin 0.8s linear infinite;
+    }
+
+    @keyframes soliplex-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// =============================================================================
+// ICONS - Inline SVG components
+// =============================================================================
+
+const Icons = {
+  Chat: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+  Trash: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  ),
+  Send: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" />
+      <polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  ),
+  Bot: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="10" rx="2" />
+      <circle cx="12" cy="5" r="2" />
+      <path d="M12 7v4" />
+      <line x1="8" y1="16" x2="8" y2="16" />
+      <line x1="16" y1="16" x2="16" y2="16" />
+    </svg>
+  ),
+  User: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  ),
+  Tool: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+    </svg>
+  ),
+  AlertCircle: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
+  MessageSquare: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+};
+
+// =============================================================================
+// CLIENT-SIDE TOOLS
+// =============================================================================
+
 function useClientTools(): ToolDefinition[] {
   return useMemo(
     () => [
@@ -68,19 +652,57 @@ function useClientTools(): ToolDefinition[] {
   );
 }
 
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Simple markdown-to-HTML converter for common patterns
+ */
+function parseSimpleMarkdown(text: string): string {
+  return text
+    // Code blocks (must come before inline code)
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    // Italic
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    // Line breaks
+    .replace(/\n/g, '<br />');
+}
+
+// =============================================================================
+// COMPONENTS
+// =============================================================================
+
 interface ChatProps {
   baseUrl: string;
   roomId: string;
   externalTools?: ToolDefinition[];
   showHeader?: boolean;
   placeholder?: string;
+  title?: string;
 }
 
-export default function Chat({ baseUrl, roomId, externalTools = [], showHeader = true, placeholder = 'Ask me anything or try "What time is it?"' }: ChatProps) {
+function Chat({
+  baseUrl,
+  roomId,
+  externalTools = [],
+  showHeader = true,
+  placeholder = 'Ask me anything or try "What time is it?"',
+  title = "AI Assistant",
+}: ChatProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const builtInTools = useClientTools();
+
+  // Inject styles on mount
+  useEffect(() => {
+    injectStyles();
+  }, []);
 
   // Combine built-in tools with external tools
   const tools = useMemo(
@@ -95,6 +717,7 @@ export default function Chat({ baseUrl, roomId, externalTools = [], showHeader =
       tools,
     });
 
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -122,72 +745,47 @@ export default function Chat({ baseUrl, roomId, externalTools = [], showHeader =
   };
 
   return (
-    <div className="chat-container">
+    <div className="soliplex-chat">
       {/* Header */}
       {showHeader && (
-        <header className="chat-header">
-          <div className="chat-header-title">
-            <svg className="chat-header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <span>AI Assistant</span>
+        <header className="soliplex-chat-header">
+          <div className="soliplex-chat-header-title">
+            <span className="soliplex-chat-header-icon">
+              <Icons.Chat />
+            </span>
+            <span>{title}</span>
           </div>
-          <button onClick={clearMessages} className="chat-clear-btn" title="Clear conversation">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-            </svg>
+          <button
+            onClick={clearMessages}
+            className="soliplex-chat-header-btn"
+            title="Clear conversation"
+            aria-label="Clear conversation"
+          >
+            <Icons.Trash />
           </button>
         </header>
       )}
 
       {/* Messages */}
-      <div className="chat-messages">
-        {messages.length === 0 && (
-          <div className="chat-empty">
-            <div className="chat-empty-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 0 1-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-            </div>
-            <p className="chat-empty-title">Start a conversation</p>
-            <p className="chat-empty-subtitle">{placeholder}</p>
-          </div>
+      <div className="soliplex-chat-messages">
+        {messages.length === 0 ? (
+          <EmptyState placeholder={placeholder} />
+        ) : (
+          messages.map((msg) => (
+            <Message key={msg.id} message={msg} />
+          ))
         )}
 
-        {messages.map((msg, index) => (
-          <MessageBubble
-            key={msg.id}
-            message={msg}
-            isLast={index === messages.length - 1}
-          />
-        ))}
+        {isLoading && <TypingIndicator />}
 
-        {isLoading && (
-          <div className="chat-typing">
-            <div className="chat-typing-indicator">
-              <TypingDots />
-            </div>
-            <span className="chat-typing-text">AI is thinking...</span>
-          </div>
-        )}
-
-        {error && (
-          <div className="chat-error">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <span>{error}</span>
-          </div>
-        )}
+        {error && <ErrorAlert message={error} />}
 
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSubmit} className="chat-input-form">
-        <div className="chat-input-container">
+      <form onSubmit={handleSubmit} className="soliplex-input-form">
+        <div className="soliplex-input-wrapper">
           <textarea
             ref={inputRef}
             value={input}
@@ -196,480 +794,111 @@ export default function Chat({ baseUrl, roomId, externalTools = [], showHeader =
             placeholder="Type your message..."
             disabled={isLoading}
             rows={1}
-            className="chat-input"
+            className="soliplex-input"
+            aria-label="Message input"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="chat-send-btn"
+            className="soliplex-send-btn"
             title="Send message"
+            aria-label="Send message"
           >
-            {isLoading ? (
-              <LoadingSpinner />
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            )}
+            {isLoading ? <Spinner /> : <Icons.Send />}
           </button>
         </div>
-        <p className="chat-hint">Press Enter to send, Shift+Enter for new line</p>
+        <p className="soliplex-input-hint">Press Enter to send, Shift+Enter for new line</p>
       </form>
-
-      <style jsx>{`
-        .chat-container {
-          display: flex;
-          flex-direction: column;
-          height: 100%;
-          background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%);
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-
-        .chat-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 20px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
-        }
-
-        .chat-header-title {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-weight: 600;
-          font-size: 16px;
-        }
-
-        .chat-header-icon {
-          width: 22px;
-          height: 22px;
-        }
-
-        .chat-clear-btn {
-          background: rgba(255, 255, 255, 0.15);
-          border: none;
-          border-radius: 8px;
-          padding: 8px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          color: white;
-        }
-
-        .chat-clear-btn:hover {
-          background: rgba(255, 255, 255, 0.25);
-          transform: scale(1.05);
-        }
-
-        .chat-clear-btn svg {
-          width: 18px;
-          height: 18px;
-        }
-
-        .chat-messages {
-          flex: 1;
-          overflow-y: auto;
-          padding: 24px;
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-        }
-
-        .chat-empty {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-          text-align: center;
-          color: #9ca3af;
-          padding: 40px;
-        }
-
-        .chat-empty-icon {
-          width: 64px;
-          height: 64px;
-          margin-bottom: 16px;
-          opacity: 0.5;
-        }
-
-        .chat-empty-icon svg {
-          width: 100%;
-          height: 100%;
-        }
-
-        .chat-empty-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #6b7280;
-          margin-bottom: 8px;
-        }
-
-        .chat-empty-subtitle {
-          font-size: 14px;
-          color: #9ca3af;
-        }
-
-        .chat-typing {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 0;
-        }
-
-        .chat-typing-indicator {
-          background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
-          padding: 12px 16px;
-          border-radius: 18px;
-          border-bottom-left-radius: 4px;
-        }
-
-        .chat-typing-text {
-          font-size: 13px;
-          color: #9ca3af;
-          font-style: italic;
-        }
-
-        .chat-error {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 12px 16px;
-          background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-          border: 1px solid #fecaca;
-          border-radius: 12px;
-          color: #dc2626;
-          font-size: 14px;
-        }
-
-        .chat-error svg {
-          width: 20px;
-          height: 20px;
-          flex-shrink: 0;
-        }
-
-        .chat-input-form {
-          padding: 20px 24px;
-          background: white;
-          border-top: 1px solid #f3f4f6;
-        }
-
-        .chat-input-container {
-          display: flex;
-          align-items: flex-end;
-          gap: 12px;
-          background: #f9fafb;
-          border: 2px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 8px 8px 8px 16px;
-          transition: all 0.2s ease;
-        }
-
-        .chat-input-container:focus-within {
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-          background: white;
-        }
-
-        .chat-input {
-          flex: 1;
-          border: none;
-          background: transparent;
-          resize: none;
-          font-size: 14px;
-          line-height: 1.5;
-          padding: 8px 0;
-          outline: none;
-          font-family: inherit;
-          color: #1f2937;
-        }
-
-        .chat-input::placeholder {
-          color: #b0b7c3;
-          font-size: 13px;
-        }
-
-        .chat-input:disabled {
-          opacity: 0.6;
-        }
-
-        .chat-send-btn {
-          width: 44px;
-          height: 44px;
-          border: none;
-          border-radius: 12px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .chat-send-btn:hover:not(:disabled) {
-          transform: scale(1.05);
-          box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-        }
-
-        .chat-send-btn:active:not(:disabled) {
-          transform: scale(0.98);
-        }
-
-        .chat-send-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-          background: #d1d5db;
-        }
-
-        .chat-send-btn svg {
-          width: 20px;
-          height: 20px;
-        }
-
-        .chat-hint {
-          font-size: 11px;
-          color: #b0b7c3;
-          margin-top: 10px;
-          text-align: center;
-        }
-      `}</style>
     </div>
   );
 }
 
-function MessageBubble({ message, isLast }: { message: ChatMessage; isLast: boolean }) {
-  const isUser = message.role === "user";
-  const isTool = message.role === "tool";
-
-  if (isTool) {
-    return (
-      <div className="tool-message">
-        <div className="tool-badge">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-          </svg>
-          <span>{message.toolName}</span>
-        </div>
-        <pre className="tool-output">
-          {JSON.stringify(JSON.parse(message.content), null, 2)}
-        </pre>
-        <style jsx>{`
-          .tool-message {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            margin: 8px 0;
-          }
-
-          .tool-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 12px;
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            border: 1px solid #fcd34d;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            color: #92400e;
-          }
-
-          .tool-badge svg {
-            width: 14px;
-            height: 14px;
-          }
-
-          .tool-output {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 12px 16px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-family: 'SF Mono', 'Fira Code', monospace;
-            max-width: 90%;
-            overflow-x: auto;
-            margin: 0;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-          }
-        `}</style>
+// Empty state component
+const EmptyState = memo(function EmptyState({ placeholder }: { placeholder: string }) {
+  return (
+    <div className="soliplex-chat-empty">
+      <div className="soliplex-chat-empty-icon">
+        <Icons.MessageSquare />
       </div>
-    );
+      <p className="soliplex-chat-empty-title">Start a conversation</p>
+      <p className="soliplex-chat-empty-subtitle">{placeholder}</p>
+    </div>
+  );
+});
+
+// Message component
+const Message = memo(function Message({ message }: { message: ChatMessage }) {
+  if (message.role === "tool") {
+    return <ToolMessage message={message} />;
+  }
+
+  const isUser = message.role === "user";
+
+  return (
+    <div className={`soliplex-msg ${isUser ? "soliplex-msg-user" : "soliplex-msg-assistant"}`}>
+      <div className={`soliplex-avatar ${isUser ? "soliplex-avatar-user" : ""}`}>
+        {isUser ? <Icons.User /> : <Icons.Bot />}
+      </div>
+      <div className={`soliplex-bubble ${isUser ? "soliplex-bubble-user" : "soliplex-bubble-assistant"}`}>
+        {isUser ? (
+          <p>{message.content}</p>
+        ) : (
+          <div dangerouslySetInnerHTML={{ __html: parseSimpleMarkdown(message.content) }} />
+        )}
+      </div>
+    </div>
+  );
+});
+
+// Tool message component
+const ToolMessage = memo(function ToolMessage({ message }: { message: ChatMessage }) {
+  let formattedOutput = message.content;
+  try {
+    formattedOutput = JSON.stringify(JSON.parse(message.content), null, 2);
+  } catch {
+    // Keep original content if not valid JSON
   }
 
   return (
-    <div className={`message ${isUser ? "message-user" : "message-assistant"}`}>
-      {!isUser && (
-        <div className="avatar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-        </div>
-      )}
-      <div className={`bubble ${isUser ? "bubble-user" : "bubble-assistant"} ${isLast && !isUser ? "bubble-last" : ""}`}>
-        <p>{message.content}</p>
+    <div className="soliplex-tool-msg">
+      <div className="soliplex-tool-badge">
+        <Icons.Tool />
+        <span>{message.toolName || "Tool"}</span>
       </div>
-      {isUser && (
-        <div className="avatar avatar-user">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
-          </svg>
-        </div>
-      )}
-      <style jsx>{`
-        .message {
-          display: flex;
-          align-items: flex-end;
-          gap: 10px;
-          max-width: 85%;
-        }
-
-        .message-user {
-          align-self: flex-end;
-          flex-direction: row;
-        }
-
-        .message-assistant {
-          align-self: flex-start;
-        }
-
-        .avatar {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-        }
-
-        .avatar svg {
-          width: 18px;
-          height: 18px;
-          color: white;
-        }
-
-        .avatar-user {
-          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
-        }
-
-        .bubble {
-          padding: 16px 20px;
-          border-radius: 20px;
-          line-height: 1.6;
-          font-size: 14px;
-        }
-
-        .bubble p {
-          margin: 0;
-          white-space: pre-wrap;
-          word-break: break-word;
-        }
-
-        .bubble-user {
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-          border-bottom-right-radius: 4px;
-          box-shadow: 0 2px 8px rgba(102, 126, 234, 0.25);
-        }
-
-        .bubble-assistant {
-          background: white;
-          color: #1f2937;
-          border-bottom-left-radius: 4px;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-          border: 1px solid #f3f4f6;
-        }
-
-        .bubble-last {
-          animation: fadeIn 0.3s ease;
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+      <pre className="soliplex-tool-output">{formattedOutput}</pre>
     </div>
   );
-}
+});
 
-function TypingDots() {
+// Typing indicator
+const TypingIndicator = memo(function TypingIndicator() {
   return (
-    <div className="typing-dots">
-      <span />
-      <span />
-      <span />
-      <style jsx>{`
-        .typing-dots {
-          display: flex;
-          gap: 4px;
-        }
-
-        .typing-dots span {
-          width: 8px;
-          height: 8px;
-          background: #9ca3af;
-          border-radius: 50%;
-          animation: typing 1.4s infinite;
-        }
-
-        .typing-dots span:nth-child(2) {
-          animation-delay: 0.2s;
-        }
-
-        .typing-dots span:nth-child(3) {
-          animation-delay: 0.4s;
-        }
-
-        @keyframes typing {
-          0%, 60%, 100% {
-            transform: translateY(0);
-            opacity: 0.4;
-          }
-          30% {
-            transform: translateY(-8px);
-            opacity: 1;
-          }
-        }
-      `}</style>
+    <div className="soliplex-typing">
+      <div className="soliplex-avatar">
+        <Icons.Bot />
+      </div>
+      <div className="soliplex-typing-bubble">
+        <span className="soliplex-typing-dot" />
+        <span className="soliplex-typing-dot" />
+        <span className="soliplex-typing-dot" />
+      </div>
     </div>
   );
-}
+});
 
-function LoadingSpinner() {
+// Error alert
+const ErrorAlert = memo(function ErrorAlert({ message }: { message: string }) {
   return (
-    <div className="spinner">
-      <style jsx>{`
-        .spinner {
-          width: 20px;
-          height: 20px;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
-      `}</style>
+    <div className="soliplex-error">
+      <Icons.AlertCircle />
+      <span>{message}</span>
     </div>
   );
-}
+});
+
+// Loading spinner
+const Spinner = memo(function Spinner() {
+  return <div className="soliplex-spinner" />;
+});
+
+export default Chat;

@@ -1,5 +1,25 @@
 // lib/agui-client.ts
-import type { Message } from "@copilotkit/react-core";
+// Tool call made by assistant (AG-UI protocol format)
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+// Message type that supports both regular messages and tool results
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "tool";
+  content: string;
+  // For assistant messages that make tool calls
+  toolCalls?: ToolCall[];
+  // For tool result messages
+  toolCallId?: string;
+  toolName?: string;
+}
 
 interface ThreadResponse {
   thread_id: string;
@@ -121,7 +141,7 @@ export class AGUIClient {
     }
   }
 
-  async chat(messages: Message[], tools: ToolDefinition[] = []): Promise<AsyncGenerator<AGUIEvent>> {
+  async chat(messages: ChatMessage[], tools: ToolDefinition[] = []): Promise<AsyncGenerator<AGUIEvent>> {
     let threadId: string;
     let runId: string;
 
@@ -137,14 +157,32 @@ export class AGUIClient {
     }
 
     // Build the AG-UI RunAgentInput with required thread_id and run_id
-    const input: RunAgentInput = {
-      thread_id: threadId,
-      run_id: runId,
-      messages: messages.map((m, idx) => ({
+    // Assistant messages with tool calls need toolCalls array
+    // Tool result messages need toolCallId field
+    const formattedMessages = messages.map((m, idx) => {
+      const base: AGUIMessage = {
         id: `msg_${idx}`,
         role: m.role,
         content: m.content,
-      })),
+      };
+      // Assistant messages may have tool calls
+      if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
+        base.toolCalls = m.toolCalls;
+      }
+      // Tool result messages must include toolCallId
+      if (m.role === "tool" && m.toolCallId) {
+        base.toolCallId = m.toolCallId;
+      }
+      return base;
+    });
+
+    // Debug: log what we're sending
+    console.log("[AGUI] Sending messages:", JSON.stringify(formattedMessages, null, 2));
+
+    const input: RunAgentInput = {
+      thread_id: threadId,
+      run_id: runId,
+      messages: formattedMessages,
       tools: tools.map(t => ({
         name: t.name,
         description: t.description,
@@ -168,11 +206,23 @@ export class AGUIClient {
 }
 
 // AG-UI Protocol Types
+
+// Message format for AG-UI protocol
+export interface AGUIMessage {
+  id: string;
+  role: string;
+  content: string;
+  // For assistant messages that make tool calls
+  toolCalls?: ToolCall[];
+  // For tool result messages (required when role="tool")
+  toolCallId?: string;
+}
+
 export interface RunAgentInput {
   thread_id: string;
   run_id: string;
   parent_run_id?: string | null;
-  messages: { role: string; content: string; id?: string }[];
+  messages: AGUIMessage[];
   tools?: ToolDef[];
   context?: ContextItem[];
   state?: Record<string, unknown> | null;
