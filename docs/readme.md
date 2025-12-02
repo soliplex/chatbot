@@ -1,3 +1,5 @@
+**[Live Demo](https://soliplex.github.io/chatbot/embed-example.html)**
+
 # Soliplex Chat Widget
 
 A React-based embeddable chat widget that connects to a Soliplex/PydanticAI backend using the AG-UI protocol.

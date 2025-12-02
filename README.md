@@ -2,6 +2,8 @@
 
 A React-based embeddable chat widget that connects to a Soliplex/PydanticAI backend using the AG-UI protocol.
 
+**[Live Demo](https://soliplex.github.io/chatbot/embed-example.html)**
+
 ## Quick Start
 
 ```bash
@@ -20,7 +22,7 @@ npm run build:widget
 Add to any HTML page:
 
 ```html
-<script src="https://your-domain.com/soliplex-chat.js"></script>
+<script src="https://raw.githubusercontent.com/soliplex/chatbot/refs/heads/main/public/soliplex-chat.js"></script>
 <script>
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
