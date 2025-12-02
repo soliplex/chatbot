@@ -243,13 +243,32 @@ SoliplexChat.init({ ... });</code></pre>
             return;
           }
           navigator.geolocation.getCurrentPosition(
-            (position) => {
-              resolve({
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
+            async (position) => {
+              const lat = position.coords.latitude;
+              const lon = position.coords.longitude;
+              const result = {
+                latitude: lat,
+                longitude: lon,
                 accuracy: position.coords.accuracy,
-                timestamp: new Date(position.timestamp).toISOString()
-              });
+                timestamp: new Date(position.timestamp).toISOString(),
+                city: null,
+                country: null
+              };
+              // Reverse geocode to get city name
+              try {
+                const resp = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+                  { headers: { 'User-Agent': 'SoliplexChatWidget/1.0' } }
+                );
+                if (resp.ok) {
+                  const data = await resp.json();
+                  result.city = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || null;
+                  result.country = data.address?.country || null;
+                }
+              } catch (e) {
+                // Geocoding failed, but we still have coordinates
+              }
+              resolve(result);
             },
             (error) => {
               const messages = {
