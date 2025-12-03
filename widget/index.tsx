@@ -17,6 +17,8 @@ interface ExternalToolConfig {
 interface WidgetInitConfig extends ChatWidgetConfig {
   tools?: ExternalToolConfig[];
   containerId?: string;
+  // Legacy support: if roomId is provided, convert to roomIds array
+  roomId?: string;
 }
 
 // Global namespace for the widget
@@ -64,6 +66,7 @@ function injectStyles() {
     .right-4 { right: 1rem; }
     .left-4 { left: 1rem; }
     .z-\\[9999\\] { z-index: 9999; }
+    .mb-3 { margin-bottom: 0.75rem; }
     .mb-4 { margin-bottom: 1rem; }
     .mt-1 { margin-top: 0.25rem; }
     .mt-2 { margin-top: 0.5rem; }
@@ -86,6 +89,7 @@ function injectStyles() {
     .justify-end { justify-content: flex-end; }
     .gap-1 { gap: 0.25rem; }
     .gap-2 { gap: 0.5rem; }
+    .space-y-2 > * + * { margin-top: 0.5rem; }
     .space-y-4 > * + * { margin-top: 1rem; }
     .h-5 { height: 1.25rem; }
     .h-6 { height: 1.5rem; }
@@ -100,7 +104,9 @@ function injectStyles() {
     .max-w-3xl { max-width: 48rem; }
     .max-w-md { max-width: 28rem; }
     .max-w-\\[80\\%\\] { max-width: 80%; }
+    .w-full { width: 100%; }
     .mx-auto { margin-left: auto; margin-right: auto; }
+    .text-left { text-align: left; }
     .overflow-hidden { overflow: hidden; }
     .overflow-y-auto { overflow-y: auto; }
     .overflow-x-auto { overflow-x: auto; }
@@ -137,7 +143,9 @@ function injectStyles() {
     .hover\\:scale-110:hover { transform: scale(1.1); }
     .hover\\:bg-white\\/20:hover { background-color: rgba(255,255,255,0.2); }
     .hover\\:bg-gray-100:hover { background-color: #f3f4f6; }
+    .hover\\:bg-blue-50:hover { background-color: #eff6ff; }
     .hover\\:bg-blue-700:hover { background-color: #1d4ed8; }
+    .hover\\:border-blue-300:hover { border-color: #93c5fd; }
     .hover\\:text-gray-900:hover { color: #111827; }
     .focus\\:outline-none:focus { outline: none; }
     .focus\\:ring-2:focus { box-shadow: 0 0 0 2px #3b82f6; }
@@ -246,10 +254,16 @@ function init(config: WidgetInitConfig) {
   // Resolve tool handlers
   const tools = config.tools ? resolveToolHandlers(config.tools) : [];
 
+  // Handle legacy roomId -> roomIds conversion
+  let roomIds = config.roomIds;
+  if (!roomIds && config.roomId) {
+    roomIds = [config.roomId];
+  }
+
   // Extract widget config
   const widgetConfig: ChatWidgetConfig = {
     baseUrl: config.baseUrl,
-    roomId: config.roomId,
+    roomIds: roomIds,
     autoHideSeconds: config.autoHideSeconds,
     position: config.position,
     bubbleColor: config.bubbleColor,

@@ -3,9 +3,18 @@
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 import Chat from "./Chat";
 
+// Room information from the API
+export interface Room {
+  id: string;
+  name: string;
+  description: string;
+  welcome_message: string;
+  suggestions: string[];
+}
+
 export interface ChatWidgetConfig {
   baseUrl: string;
-  roomId: string;
+  roomIds?: string[]; // Optional list of room IDs to show; if empty/undefined, show all
   autoHideSeconds?: number; // 0 = never hide
   position?: "bottom-right" | "bottom-left";
   bubbleColor?: string;
@@ -36,16 +45,61 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
     const [isOpen, setIsOpen] = useState(false);
     const [isVisible, setIsVisible] = useState(true);
     const [hasInteracted, setHasInteracted] = useState(false);
+    const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
+    const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+    const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+    const [roomsError, setRoomsError] = useState<string | null>(null);
 
     const {
       baseUrl,
-      roomId,
+      roomIds,
       autoHideSeconds = 0,
       position = "bottom-right",
       bubbleColor = "#2563eb",
       title = "Chat with us",
       placeholder,
     } = config;
+
+    // Fetch available rooms when widget opens
+    useEffect(() => {
+      if (isOpen && availableRooms.length === 0 && !isLoadingRooms) {
+        fetchRooms();
+      }
+    }, [isOpen]);
+
+    const fetchRooms = async () => {
+      setIsLoadingRooms(true);
+      setRoomsError(null);
+      try {
+        const response = await fetch(`${baseUrl}/api/v1/rooms`);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch rooms: ${response.status}`);
+        }
+        const roomsData: Record<string, Room> = await response.json();
+
+        // Convert to array and filter if roomIds specified
+        let rooms = Object.entries(roomsData).map(([id, room]) => ({
+          ...room,
+          id,
+        }));
+
+        // Filter to only specified roomIds if provided
+        if (roomIds && roomIds.length > 0) {
+          rooms = rooms.filter(room => roomIds.includes(room.id));
+        }
+
+        setAvailableRooms(rooms);
+
+        // Auto-select if only one room
+        if (rooms.length === 1) {
+          setSelectedRoom(rooms[0]);
+        }
+      } catch (err) {
+        setRoomsError(err instanceof Error ? err.message : "Failed to load rooms");
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
 
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -96,6 +150,10 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       onOpenChange?.(false);
     }, [onOpenChange]);
 
+    const handleBackToRooms = useCallback(() => {
+      setSelectedRoom(null);
+    }, []);
+
     // Show bubble on mouse movement near edge (if hidden)
     useEffect(() => {
       if (!isVisible && !isOpen) {
@@ -144,7 +202,31 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
               className="flex items-center justify-between px-4 py-3 text-white"
               style={{ backgroundColor: bubbleColor }}
             >
-              <span className="font-medium">{title}</span>
+              <div className="flex items-center gap-2">
+                {selectedRoom && availableRooms.length > 1 && (
+                  <button
+                    onClick={handleBackToRooms}
+                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    aria-label="Back to rooms"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
+                <span className="font-medium">
+                  {selectedRoom ? selectedRoom.name : title}
+                </span>
+              </div>
               <button
                 onClick={handleClose}
                 className="p-1 hover:bg-white/20 rounded transition-colors"
@@ -165,9 +247,36 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
               </button>
             </div>
 
-            {/* Chat Content */}
+            {/* Content Area */}
             <div style={{ height: "calc(100% - 52px)" }}>
-              <ChatEmbed baseUrl={baseUrl} roomId={roomId} tools={tools} placeholder={placeholder} />
+              {isLoadingRooms ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-gray-500">Loading rooms...</div>
+                </div>
+              ) : roomsError ? (
+                <div className="h-full flex flex-col items-center justify-center p-4">
+                  <div className="text-red-700 text-center mb-4">{roomsError}</div>
+                  <button
+                    onClick={fetchRooms}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : selectedRoom ? (
+                <ChatEmbed
+                  baseUrl={baseUrl}
+                  room={selectedRoom}
+                  tools={tools}
+                  placeholder={placeholder}
+                />
+              ) : (
+                <RoomSelector
+                  rooms={availableRooms}
+                  onSelect={setSelectedRoom}
+                  bubbleColor={bubbleColor}
+                />
+              )}
             </div>
           </div>
         )}
@@ -212,15 +321,76 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
   }
 );
 
+// Room selector component with dropdown
+function RoomSelector({
+  rooms,
+  onSelect,
+  bubbleColor,
+}: {
+  rooms: Room[];
+  onSelect: (room: Room) => void;
+  bubbleColor: string;
+}) {
+  const [selectedId, setSelectedId] = useState<string>("");
+
+  if (rooms.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="text-gray-500 text-center">No rooms available</div>
+      </div>
+    );
+  }
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const roomId = e.target.value;
+    setSelectedId(roomId);
+    const room = rooms.find(r => r.id === roomId);
+    if (room) {
+      onSelect(room);
+    }
+  };
+
+  return (
+    <div className="h-full p-4">
+      <label
+        htmlFor="room-select"
+        className="block text-sm font-medium mb-2"
+        style={{ color: "#374151" }}
+      >
+        Select a conversation:
+      </label>
+      <select
+        id="room-select"
+        value={selectedId}
+        onChange={handleChange}
+        className="w-full p-3 rounded-lg border text-base"
+        style={{
+          borderColor: "#d1d5db",
+          backgroundColor: "#ffffff",
+          color: "#111827",
+          outline: "none",
+        }}
+      >
+        <option value="" disabled>Choose a room...</option>
+        {rooms.map((room) => (
+          <option key={room.id} value={room.id}>
+            {room.name} ({room.id})
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // Simplified Chat component for embedding
 function ChatEmbed({
   baseUrl,
-  roomId,
+  room,
   tools,
   placeholder,
 }: {
   baseUrl: string;
-  roomId: string;
+  room: Room;
   tools: Array<{
     name: string;
     description: string;
@@ -231,7 +401,15 @@ function ChatEmbed({
 }) {
   return (
     <div className="h-full">
-      <Chat baseUrl={baseUrl} roomId={roomId} externalTools={tools} showHeader={false} placeholder={placeholder} />
+      <Chat
+        baseUrl={baseUrl}
+        roomId={room.id}
+        externalTools={tools}
+        showHeader={false}
+        placeholder={placeholder || room.welcome_message}
+        roomDescription={room.description}
+        suggestions={room.suggestions}
+      />
     </div>
   );
 }

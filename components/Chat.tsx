@@ -187,7 +187,49 @@ function injectStyles() {
     .soliplex-chat-empty-subtitle {
       font-size: 13px;
       color: var(--chat-text-muted);
-      max-width: 240px;
+      max-width: 280px;
+    }
+
+    .soliplex-chat-empty-description {
+      font-size: 14px;
+      color: var(--chat-text-secondary);
+      max-width: 320px;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .soliplex-chat-suggestions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+      justify-content: center;
+      max-width: 320px;
+    }
+
+    .soliplex-chat-suggestion {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      background: var(--chat-bg-secondary);
+      border: 1px solid var(--chat-border);
+      border-radius: var(--chat-radius-full);
+      font-size: 13px;
+      color: var(--chat-text-secondary);
+      cursor: pointer;
+      transition: all var(--chat-transition);
+      font-family: var(--chat-font);
+    }
+
+    .soliplex-chat-suggestion:hover {
+      background: var(--chat-primary-light);
+      border-color: var(--chat-primary);
+      color: var(--chat-primary);
+      transform: translateY(-1px);
+    }
+
+    .soliplex-chat-suggestion:active {
+      transform: translateY(0);
     }
 
     /* Message Base */
@@ -684,6 +726,8 @@ interface ChatProps {
   showHeader?: boolean;
   placeholder?: string;
   title?: string;
+  roomDescription?: string;
+  suggestions?: string[];
 }
 
 function Chat({
@@ -693,6 +737,8 @@ function Chat({
   showHeader = true,
   placeholder = 'Ask me anything or try "What time is it?"',
   title = "AI Assistant",
+  roomDescription,
+  suggestions = [],
 }: ChatProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -769,7 +815,13 @@ function Chat({
       {/* Messages */}
       <div className="soliplex-chat-messages">
         {messages.length === 0 ? (
-          <EmptyState placeholder={placeholder} />
+          <EmptyState
+            roomDescription={roomDescription}
+            suggestions={suggestions}
+            onSuggestionClick={(suggestion) => {
+              sendMessage(suggestion);
+            }}
+          />
         ) : (
           messages.map((msg) => (
             <Message key={msg.id} message={msg} />
@@ -814,14 +866,38 @@ function Chat({
 }
 
 // Empty state component
-const EmptyState = memo(function EmptyState({ placeholder }: { placeholder: string }) {
+const EmptyState = memo(function EmptyState({
+  roomDescription,
+  suggestions,
+  onSuggestionClick,
+}: {
+  placeholder: string;
+  roomDescription?: string;
+  suggestions?: string[];
+  onSuggestionClick?: (suggestion: string) => void;
+}) {
   return (
     <div className="soliplex-chat-empty">
       <div className="soliplex-chat-empty-icon">
         <Icons.MessageSquare />
       </div>
       <p className="soliplex-chat-empty-title">Start a conversation</p>
-      <p className="soliplex-chat-empty-subtitle">{placeholder}</p>
+      {roomDescription && (
+        <p className="soliplex-chat-empty-description">{roomDescription}</p>
+      )}
+      {suggestions && suggestions.length > 0 && (
+        <div className="soliplex-chat-suggestions">
+          {suggestions.map((suggestion, index) => (
+            <button
+              key={index}
+              className="soliplex-chat-suggestion"
+              onClick={() => onSuggestionClick?.(suggestion)}
+            >
+              {suggestion}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 });
