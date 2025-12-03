@@ -61,7 +61,8 @@
 &lt;script&gt;
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
-    roomId: "default-room",
+    // roomIds: [],  // Empty or omit to show all rooms
+    // roomIds: ["room1", "room2"],  // Or specify rooms to show
     autoHideSeconds: 0,  // 0 = never hide
     position: "bottom-right",
     bubbleColor: "#2563eb",
@@ -87,10 +88,10 @@
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Backend API URL</td>
       </tr>
       <tr>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>roomId</code></td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">string</td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>default-room</em></td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Room identifier for the chat</td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>roomIds</code></td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">string[]</td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>[] (all rooms)</em></td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Room IDs to show; empty or omit to show all available rooms</td>
       </tr>
       <tr>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>autoHideSeconds</code></td>
@@ -288,12 +289,12 @@ SoliplexChat.init({ ... });</code></pre>
     function initWidget() {
       SoliplexChat.init({
         baseUrl: "http://localhost:8000",
-        roomId: "mcptest",
+        // roomIds: [], // Empty or omit to show all available rooms
+        // roomIds: ["mcptest"], // Or specify specific rooms to show
         autoHideSeconds: 0,
         position: "bottom-right",
         bubbleColor: "#2563eb",
-        title: "Demo Chat",
-        placeholder: 'Ask me anything or try "Show me details about the current page"',
+        title: "Select a Chat",
         tools: [
           {
             name: "get_page_info",
