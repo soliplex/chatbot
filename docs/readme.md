@@ -55,9 +55,6 @@ Create a `.env.local` file:
 ```bash
 # Backend API URL
 NEXT_PUBLIC_AGUI_BASE_URL=http://localhost:8000
-
-# Default room ID
-NEXT_PUBLIC_ROOM_ID=default-room
 ```
 
 ### 3. Start Development Server

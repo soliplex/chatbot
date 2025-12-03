@@ -10,26 +10,28 @@ Add the following to your HTML page:
 <script src="https://your-domain.com/soliplex-chat.js"></script>
 <script>
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
-    roomId: "default-room"
+    baseUrl: "http://localhost:8000"
   });
 </script>
 ```
 
-That's it! A chat bubble will appear in the bottom-right corner of your page.
+That's it! A chat bubble will appear in the bottom-right corner of your page. When clicked, users will see a list of available chat rooms to choose from.
 
 ## Configuration Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `baseUrl` | string | *required* | Backend API URL (e.g., `http://localhost:8000`) |
-| `roomId` | string | *required* | Room identifier for the chat session |
+| `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
 | `bubbleColor` | string | `"#2563eb"` | CSS color for the chat bubble |
-| `title` | string | `"Chat with us"` | Title shown in the chat header |
+| `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
+| `placeholder` | string | - | Placeholder text for empty chat (overrides room's welcome message) |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
+
+> **Note:** The `roomId` option is still supported for backwards compatibility and will be converted to `roomIds: [roomId]`.
 
 ### Example with All Options
 
@@ -38,7 +40,7 @@ That's it! A chat bubble will appear in the bottom-right corner of your page.
 <script>
   SoliplexChat.init({
     baseUrl: "https://api.example.com",
-    roomId: "support-chat",
+    roomIds: ["support", "sales"],  // Only show these rooms
     autoHideSeconds: 30,
     position: "bottom-left",
     bubbleColor: "#10b981",
@@ -47,6 +49,17 @@ That's it! A chat bubble will appear in the bottom-right corner of your page.
   });
 </script>
 ```
+
+### Room Selection Behavior
+
+The widget fetches available rooms from `GET /api/v1/rooms` when opened:
+
+- **No `roomIds` specified**: Shows all available rooms from the backend
+- **`roomIds` with multiple IDs**: Shows only those rooms, user picks one
+- **`roomIds` with single ID**: Auto-selects that room, skips room selection
+- **`roomIds` with IDs not in backend**: Those rooms are filtered out
+
+Once a room is selected, the header shows the room's name and a back button (if multiple rooms are available) to return to room selection.
 
 ## API Methods
 
@@ -85,7 +98,6 @@ Set `autoHideSeconds` to automatically hide the bubble after a period of inactiv
 ```javascript
 SoliplexChat.init({
   baseUrl: "http://localhost:8000",
-  roomId: "default-room",
   autoHideSeconds: 15  // Hide after 15 seconds if user hasn't interacted
 });
 ```
@@ -165,7 +177,7 @@ Get information about the current page:
 
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
-    roomId: "support",
+    roomIds: ["support"],
     tools: [
       {
         name: "get_page_info",
@@ -227,7 +239,7 @@ Tools for an e-commerce site:
 
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
-    roomId: "shop-assistant",
+    roomIds: ["shop-assistant"],
     bubbleColor: "#f97316",
     title: "Shopping Assistant",
     tools: [
@@ -339,7 +351,7 @@ Tools to help users fill out forms:
 
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
-    roomId: "form-helper",
+    roomIds: ["form-helper"],
     title: "Form Assistant",
     tools: [
       {
@@ -415,7 +427,7 @@ Tools that provide user context to the AI:
 
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
-    roomId: "support",
+    roomIds: ["support"],
     tools: [
       {
         name: "get_user_info",
@@ -492,7 +504,7 @@ Tools to help users navigate your site:
 
   SoliplexChat.init({
     baseUrl: "http://localhost:8000",
-    roomId: "navigator",
+    roomIds: ["navigator"],
     title: "Site Guide",
     tools: [
       {
