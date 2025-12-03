@@ -399,6 +399,48 @@ function ChatEmbed({
   }>;
   placeholder?: string;
 }) {
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+
+  // Fetch background image when room changes
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchBackgroundImage = async () => {
+      const url = `${baseUrl}/api/v1/rooms/${room.id}/bg_image`;
+      console.log('[ChatEmbed] Fetching background image:', url);
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          const blob = await response.blob();
+          if (!cancelled) {
+            const imageUrl = URL.createObjectURL(blob);
+            setBackgroundImage(imageUrl);
+          }
+        } else {
+          // No image available or error
+          if (!cancelled) {
+            setBackgroundImage(null);
+          }
+        }
+      } catch {
+        // Failed to fetch image
+        if (!cancelled) {
+          setBackgroundImage(null);
+        }
+      }
+    };
+
+    fetchBackgroundImage();
+
+    return () => {
+      cancelled = true;
+      // Clean up the object URL when component unmounts or room changes
+      if (backgroundImage) {
+        URL.revokeObjectURL(backgroundImage);
+      }
+    };
+  }, [baseUrl, room.id]);
+
   return (
     <div className="h-full">
       <Chat
@@ -409,6 +451,7 @@ function ChatEmbed({
         placeholder={placeholder || room.welcome_message}
         roomDescription={room.description}
         suggestions={room.suggestions}
+        backgroundImage={backgroundImage}
       />
     </div>
   );
