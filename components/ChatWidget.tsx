@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
 import Chat from "./Chat";
+import { useAuth, type AuthSystem } from "@/hooks/useAuth";
 
 // Room information from the API
 export interface Room {
@@ -60,18 +61,39 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       placeholder,
     } = config;
 
-    // Fetch available rooms when widget opens
+    // Authentication hook
+    const {
+      isLoading: isAuthLoading,
+      isAuthenticated,
+      authRequired,
+      authSystems,
+      userInfo,
+      error: authError,
+      login,
+      logout,
+      getAccessToken,
+    } = useAuth({ baseUrl });
+
+    // Fetch available rooms when widget opens and user is authenticated (or auth not required)
     useEffect(() => {
-      if (isOpen && availableRooms.length === 0 && !isLoadingRooms) {
+      const canFetchRooms = isOpen && availableRooms.length === 0 && !isLoadingRooms;
+      const authReady = authRequired === false || isAuthenticated;
+
+      if (canFetchRooms && authReady) {
         fetchRooms();
       }
-    }, [isOpen]);
+    }, [isOpen, authRequired, isAuthenticated]);
 
     const fetchRooms = async () => {
       setIsLoadingRooms(true);
       setRoomsError(null);
       try {
-        const response = await fetch(`${baseUrl}/api/v1/rooms`);
+        const headers: Record<string, string> = {};
+        const token = getAccessToken();
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const response = await fetch(`${baseUrl}/api/v1/rooms`, { headers });
         if (!response.ok) {
           throw new Error(`Failed to fetch rooms: ${response.status}`);
         }
@@ -154,6 +176,14 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       setSelectedRoom(null);
     }, []);
 
+    const handleLogout = useCallback(() => {
+      logout();
+      // Clear room state so user sees login screen after logging out
+      setAvailableRooms([]);
+      setSelectedRoom(null);
+      setRoomsError(null);
+    }, [logout]);
+
     // Show bubble on mouse movement near edge (if hidden)
     useEffect(() => {
       if (!isVisible && !isOpen) {
@@ -227,29 +257,67 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                   {selectedRoom ? selectedRoom.name : title}
                 </span>
               </div>
-              <button
-                onClick={handleClose}
-                className="p-1 hover:bg-white/20 rounded transition-colors"
-                aria-label="Close chat"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 w-5"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
+              <div className="flex items-center gap-1">
+                {/* Logout button - only show when authenticated */}
+                {isAuthenticated && (
+                  <button
+                    onClick={handleLogout}
+                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    aria-label="Logout"
+                    title="Logout"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
+                {/* Close button */}
+                <button
+                  onClick={handleClose}
+                  className="p-1 hover:bg-white/20 rounded transition-colors"
+                  aria-label="Close chat"
                 >
-                  <path
-                    fillRule="evenodd"
-                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </button>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             {/* Content Area */}
             <div style={{ height: "calc(100% - 52px)" }}>
-              {isLoadingRooms ? (
+              {/* Auth loading state */}
+              {isAuthLoading ? (
+                <div className="h-full flex items-center justify-center">
+                  <div className="text-gray-500">Checking authentication...</div>
+                </div>
+              ) : /* Auth required but not authenticated */
+              authRequired && !isAuthenticated ? (
+                <LoginSelector
+                  authSystems={authSystems}
+                  onLogin={login}
+                  error={authError}
+                  bubbleColor={bubbleColor}
+                />
+              ) : isLoadingRooms ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-gray-500">Loading rooms...</div>
                 </div>
@@ -269,6 +337,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                   room={selectedRoom}
                   tools={tools}
                   placeholder={placeholder}
+                  getAccessToken={getAccessToken}
                 />
               ) : (
                 <RoomSelector
@@ -320,6 +389,96 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
     );
   }
 );
+
+// Login selector component for authentication
+function LoginSelector({
+  authSystems,
+  onLogin,
+  error,
+  bubbleColor,
+}: {
+  authSystems: Record<string, AuthSystem>;
+  onLogin: (systemId: string) => Promise<void>;
+  error: string | null;
+  bubbleColor: string;
+}) {
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  const systems = Object.values(authSystems);
+
+  const handleLogin = async (systemId: string) => {
+    setIsLoggingIn(true);
+    setLoginError(null);
+    try {
+      await onLogin(systemId);
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  if (systems.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center p-4">
+        <div className="text-gray-500 text-center">No authentication providers configured</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center p-4">
+      <div
+        className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
+        style={{ backgroundColor: bubbleColor }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-6 w-6 text-white"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold mb-2" style={{ color: "#111827" }}>
+        Sign in to continue
+      </h3>
+      <p className="text-sm text-center mb-4" style={{ color: "#6b7280" }}>
+        Please sign in to access the chat
+      </p>
+
+      {(error || loginError) && (
+        <div className="w-full max-w-xs mb-4 p-3 rounded-lg text-sm text-center"
+          style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
+          {error || loginError}
+        </div>
+      )}
+
+      <div className="w-full max-w-xs space-y-2">
+        {systems.map((system) => (
+          <button
+            key={system.id}
+            onClick={() => handleLogin(system.id)}
+            disabled={isLoggingIn}
+            className="w-full p-3 rounded-lg text-white font-medium transition-all"
+            style={{
+              backgroundColor: isLoggingIn ? "#9ca3af" : bubbleColor,
+              cursor: isLoggingIn ? "not-allowed" : "pointer",
+            }}
+          >
+            {isLoggingIn ? "Signing in..." : system.title}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Room selector component with dropdown
 function RoomSelector({
@@ -388,6 +547,7 @@ function ChatEmbed({
   room,
   tools,
   placeholder,
+  getAccessToken,
 }: {
   baseUrl: string;
   room: Room;
@@ -398,6 +558,7 @@ function ChatEmbed({
     handler: (args: Record<string, unknown>) => Promise<unknown>;
   }>;
   placeholder?: string;
+  getAccessToken?: () => string | null;
 }) {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
@@ -409,7 +570,12 @@ function ChatEmbed({
       const url = `${baseUrl}/api/v1/rooms/${room.id}/bg_image`;
       console.log('[ChatEmbed] Fetching background image:', url);
       try {
-        const response = await fetch(url);
+        const headers: Record<string, string> = {};
+        const token = getAccessToken?.();
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const response = await fetch(url, { headers });
         if (response.ok) {
           const blob = await response.blob();
           if (!cancelled) {
@@ -452,6 +618,7 @@ function ChatEmbed({
         roomDescription={room.description}
         suggestions={room.suggestions}
         backgroundImage={backgroundImage}
+        getAccessToken={getAccessToken}
       />
     </div>
   );

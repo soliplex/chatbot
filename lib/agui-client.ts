@@ -43,6 +43,7 @@ interface RunResponse {
 interface AGUIClientConfig {
   baseUrl: string;
   roomId: string;
+  getAccessToken?: () => string | null;
 }
 
 export class AGUIClient {
@@ -50,10 +51,27 @@ export class AGUIClient {
   private roomId: string;
   private threadId: string | null = null;
   private currentRunId: string | null = null;
+  private getAccessToken?: () => string | null;
 
   constructor(config: AGUIClientConfig) {
     this.baseUrl = config.baseUrl;
     this.roomId = config.roomId;
+    this.getAccessToken = config.getAccessToken;
+  }
+
+  private buildHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (this.getAccessToken) {
+      const token = this.getAccessToken();
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    }
+
+    return headers;
   }
 
   private get baseEndpoint() {
@@ -67,7 +85,7 @@ export class AGUIClient {
   async createThread(): Promise<{ threadId: string; runId: string }> {
     const res = await fetch(this.baseEndpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.buildHeaders(),
       body: JSON.stringify({}),
     });
     if (!res.ok) throw new Error(`Failed to create thread: ${res.status}`);
@@ -92,7 +110,7 @@ export class AGUIClient {
   async createRun(threadId: string): Promise<string> {
     const res = await fetch(`${this.baseEndpoint}/${threadId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.buildHeaders(),
       body: JSON.stringify({}),
     });
     if (!res.ok) throw new Error(`Failed to create run: ${res.status}`);
@@ -108,7 +126,7 @@ export class AGUIClient {
   ): AsyncGenerator<AGUIEvent> {
     const res = await fetch(`${this.baseEndpoint}/${threadId}/${runId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: this.buildHeaders(),
       body: JSON.stringify(input),
     });
 

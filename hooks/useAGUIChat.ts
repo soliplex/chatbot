@@ -9,9 +9,10 @@ interface UseAGUIChatOptions {
   baseUrl: string;
   roomId: string;
   tools?: ToolDefinition[];
+  getAccessToken?: () => string | null;
 }
 
-export function useAGUIChat({ baseUrl, roomId, tools = [] }: UseAGUIChatOptions) {
+export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken }: UseAGUIChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,10 +25,10 @@ export function useAGUIChat({ baseUrl, roomId, tools = [] }: UseAGUIChatOptions)
 
   const getClient = useCallback(() => {
     if (!clientRef.current) {
-      clientRef.current = new AGUIClient({ baseUrl, roomId });
+      clientRef.current = new AGUIClient({ baseUrl, roomId, getAccessToken });
     }
     return clientRef.current;
-  }, [baseUrl, roomId]);
+  }, [baseUrl, roomId, getAccessToken]);
 
   const executeClientTool = useCallback(
     async (toolName: string, args: Record<string, unknown>) => {
