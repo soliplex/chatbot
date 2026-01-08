@@ -286,9 +286,15 @@ SoliplexChat.init({ ... });</code></pre>
     };
 
     // Initialize the widget
+    // Use current origin for API calls (works with nginx proxy on port 8080)
+    // or fall back to localhost:8000 for direct backend access
     function initWidget() {
+      const baseUrl = window.location.port === "8080"
+        ? window.location.origin  // Use nginx proxy
+        : "http://localhost:8000"; // Direct backend access
+
       SoliplexChat.init({
-        baseUrl: "http://localhost:8000",
+        baseUrl: baseUrl,
         // roomIds: [], // Empty or omit to show all available rooms
         // roomIds: ["mcptest"], // Or specify specific rooms to show
         autoHideSeconds: 0,

@@ -753,6 +753,7 @@ interface ChatProps {
   roomDescription?: string;
   suggestions?: string[];
   backgroundImage?: string | null;
+  getAccessToken?: () => string | null;
 }
 
 function Chat({
@@ -765,6 +766,7 @@ function Chat({
   roomDescription,
   suggestions = [],
   backgroundImage,
+  getAccessToken,
 }: ChatProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -787,6 +789,7 @@ function Chat({
       baseUrl,
       roomId,
       tools,
+      getAccessToken,
     });
 
   // Auto-scroll to bottom

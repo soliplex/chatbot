@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soliplex Authentication</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    }
+
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .icon-success {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    }
+
+    .icon-error {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    }
+
+    .icon-loading {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    }
+
+    .icon svg {
+      width: 32px;
+      height: 32px;
+      color: white;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      color: #0f172a;
+      margin-bottom: 12px;
+    }
+
+    p {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .error-details {
+      margin-top: 16px;
+      padding: 12px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      color: #dc2626;
+      font-size: 13px;
+      word-break: break-word;
+    }
+
+    .close-btn {
+      margin-top: 24px;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .close-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+    }
+
+    .close-btn:active {
+      transform: translateY(0);
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading State -->
+  <div id="loading" class="container">
+    <div class="icon icon-loading">
+      <div class="spinner"></div>
+    </div>
+    <h1>Completing sign in...</h1>
+    <p>Please wait while we complete your authentication.</p>
+  </div>
+
+  <!-- Success State -->
+  <div id="success" class="container hidden">
+    <div class="icon icon-success">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    </div>
+    <h1>Sign in successful!</h1>
+    <p>You have been authenticated successfully. This window will close automatically.</p>
+    <button class="close-btn" onclick="window.close()">Close Window</button>
+  </div>
+
+  <!-- Error State -->
+  <div id="error" class="container hidden">
+    <div class="icon icon-error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="15" y1="9" x2="9" y2="15"></line>
+        <line x1="9" y1="9" x2="15" y2="15"></line>
+      </svg>
+    </div>
+    <h1>Sign in failed</h1>
+    <p>There was a problem completing your authentication.</p>
+    <div id="error-details" class="error-details hidden"></div>
+    <button class="close-btn" onclick="window.close()">Close Window</button>
+  </div>
+
+  <script>
+    (function() {
+      const loadingEl = document.getElementById('loading');
+      const successEl = document.getElementById('success');
+      const errorEl = document.getElementById('error');
+      const errorDetailsEl = document.getElementById('error-details');
+
+      function showSuccess() {
+        loadingEl.classList.add('hidden');
+        successEl.classList.remove('hidden');
+      }
+
+      function showError(message) {
+        loadingEl.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        if (message) {
+          errorDetailsEl.textContent = message;
+          errorDetailsEl.classList.remove('hidden');
+        }
+      }
+
+      function sendToParent(type, data) {
+        if (window.opener) {
+          window.opener.postMessage({ type, ...data }, '*');
+        }
+      }
+
+      // Parse tokens from URL query parameters
+      function parseTokens() {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+
+        if (!token) {
+          return null;
+        }
+
+        return {
+          accessToken: token,
+          refreshToken: params.get('refresh_token') || undefined,
+          expiresIn: params.get('expires_in') ? parseInt(params.get('expires_in'), 10) : undefined,
+          refreshExpiresIn: params.get('refresh_expires_in') ? parseInt(params.get('refresh_expires_in'), 10) : undefined,
+        };
+      }
+
+      // Check for error in URL
+      function parseError() {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('error') || params.get('error_description');
+      }
+
+      // Main logic
+      try {
+        const error = parseError();
+        if (error) {
+          sendToParent('soliplex-auth-error', { error });
+          showError(error);
+          return;
+        }
+
+        const tokens = parseTokens();
+        if (tokens) {
+          sendToParent('soliplex-auth-success', { tokens });
+          showSuccess();
+
+          // Auto-close after 2 seconds
+          setTimeout(() => {
+            window.close();
+          }, 2000);
+        } else {
+          // No tokens found - this might be the initial load before redirect
+          // Check if we're in a popup
+          if (!window.opener) {
+            showError('This page should be opened from the Soliplex chat widget.');
+          } else {
+            // Wait a moment in case this is a redirect in progress
+            setTimeout(() => {
+              const tokens = parseTokens();
+              if (!tokens) {
+                sendToParent('soliplex-auth-error', { error: 'No authentication tokens received' });
+                showError('No authentication tokens received. Please try again.');
+              }
+            }, 1000);
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        sendToParent('soliplex-auth-error', { error: message });
+        showError(message);
+      }
+    })();
+  </script>
+</body>
+</html>
