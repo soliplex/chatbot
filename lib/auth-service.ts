@@ -245,7 +245,11 @@ export class AuthService {
   private buildCallbackUrl(_callbackId: string): string {
     // The callback page is served alongside the widget bundle
     // It captures tokens from URL params and sends them to the parent window
-    return `${window.location.origin}/soliplex-auth-callback.html`;
+    // Use the same directory path as the current page (e.g., /chatbot/ on GitHub Pages)
+    const pathParts = window.location.pathname.split('/');
+    pathParts.pop();
+    const basePath = pathParts.join('/') || '';
+    return `${window.location.origin}${basePath}/soliplex-auth-callback.html`;
   }
 
   /**
