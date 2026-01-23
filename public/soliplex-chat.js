@@ -587,7 +587,6 @@ Error generating stack: `+l.message+`
     #soliplex-chat-widget * {
       box-sizing: border-box;
       margin: 0;
-      padding: 0;
     }
 
     #soliplex-chat-widget {
