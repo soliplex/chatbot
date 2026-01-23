@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soliplex Chat Widget - Demo</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+    h1 { color: #1e40af; }
+    code {
+      background: #f3f4f6;
+      padding: 0.2em 0.4em;
+      border-radius: 0.25rem;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      overflow-x: auto;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    .demo-section {
+      margin-top: 2rem;
+      padding: 1.5rem;
+      background: #f8fafc;
+      border-radius: 0.5rem;
+      border: 1px solid #e2e8f0;
+    }
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1rem;
+    }
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      font-size: 0.95rem;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    button:hover { background: #1d4ed8; }
+    button.secondary {
+      background: #64748b;
+    }
+    button.secondary:hover {
+      background: #475569;
+    }
+    button.active {
+      background: #16a34a;
+    }
+    button.active:hover {
+      background: #15803d;
+    }
+    .status {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: #e0f2fe;
+      border-radius: 0.375rem;
+      color: #0369a1;
+      font-size: 0.9rem;
+    }
+    .status strong {
+      color: #0c4a6e;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th {
+      text-align: left;
+      padding: 0.5rem;
+      border: 1px solid #e2e8f0;
+      background: #f1f5f9;
+    }
+    td {
+      padding: 0.5rem;
+      border: 1px solid #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Soliplex Chat Widget</h1>
+  <p>This page demonstrates how to embed the Soliplex Chat widget into any website.</p>
+
+  <div class="demo-section">
+    <h3>Widget Mode Selection</h3>
+    <p>Choose which widget configuration to use:</p>
+    <div class="button-group">
+      <button id="btn-single" onclick="initSingleRoomWidget()">Initialize Single Room Widget</button>
+      <button id="btn-multi" onclick="initMultiRoomWidget()">Initialize Multi Room Widget</button>
+    </div>
+    <div class="button-group">
+      <button class="secondary" onclick="SoliplexChat.open()">Open Chat</button>
+      <button class="secondary" onclick="SoliplexChat.close()">Close Chat</button>
+      <button class="secondary" onclick="SoliplexChat.destroy(); updateStatus('destroyed')">Destroy Widget</button>
+    </div>
+    <div id="status" class="status">
+      <strong>Current mode:</strong> <span id="mode-text">Not initialized</span>
+    </div>
+  </div>
+
+  <h2>Basic Usage</h2>
+  <pre><code>&lt;!-- Include the widget script --&gt;
+&lt;script src="https://soliplex.github.io/chatbot/soliplex-chat.js"&gt;&lt;/script&gt;
+
+&lt;!-- Initialize the widget --&gt;
+&lt;script&gt;
+  SoliplexChat.init({
+    baseUrl: "http://localhost:8000",
+    // Single room mode (skip room selection):
+    // roomId: "gemini_flash",
+    // Multi room mode (show room selector):
+    // roomIds: ["room1", "room2"],  // Or omit to show all rooms
+    autoHideSeconds: 0,
+    position: "bottom-right",
+    bubbleColor: "#2563eb",
+    title: "Chat with us"
+  });
+&lt;/script&gt;</code></pre>
+
+  <h2>Configuration Options</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Option</th>
+        <th>Type</th>
+        <th>Default</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>baseUrl</code></td>
+        <td>string</td>
+        <td><em>required</em></td>
+        <td>Backend API URL</td>
+      </tr>
+      <tr>
+        <td><code>roomId</code></td>
+        <td>string</td>
+        <td><em>undefined</em></td>
+        <td>Single room ID - skip room selection and go directly to this room</td>
+      </tr>
+      <tr>
+        <td><code>roomIds</code></td>
+        <td>string[]</td>
+        <td><em>[] (all rooms)</em></td>
+        <td>Room IDs to show; empty or omit to show all available rooms</td>
+      </tr>
+      <tr>
+        <td><code>autoHideSeconds</code></td>
+        <td>number</td>
+        <td>0</td>
+        <td>Seconds until bubble auto-hides (0 = never)</td>
+      </tr>
+      <tr>
+        <td><code>position</code></td>
+        <td>string</td>
+        <td>"bottom-right"</td>
+        <td>"bottom-right" or "bottom-left"</td>
+      </tr>
+      <tr>
+        <td><code>bubbleColor</code></td>
+        <td>string</td>
+        <td>"#2563eb"</td>
+        <td>Color of the chat bubble</td>
+      </tr>
+      <tr>
+        <td><code>title</code></td>
+        <td>string</td>
+        <td>"Chat with us"</td>
+        <td>Title shown in the chat header</td>
+      </tr>
+      <tr>
+        <td><code>tools</code></td>
+        <td>array</td>
+        <td>[]</td>
+        <td>Custom client-side tools</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Adding Custom Tools</h2>
+  <p>You can define custom JavaScript functions that the AI agent can call:</p>
+
+  <pre><code>&lt;script&gt;
+// Define your tool functions on the window object
+window.myTools = {
+  getWeather: async function(args) {
+    // Your implementation here
+    return { temperature: 72, condition: "sunny", location: args.city };
+  }
+};
+
+// Initialize with tools
+SoliplexChat.init({
+  baseUrl: "http://localhost:8000",
+  roomId: "default-room",
+  tools: [
+    {
+      name: "get_weather",
+      description: "Get the current weather for a city",
+      parameters: {
+        type: "object",
+        properties: {
+          city: { type: "string", description: "The city name" }
+        },
+        required: ["city"]
+      },
+      handler: "myTools.getWeather"  // Reference to window.myTools.getWeather
+    }
+  ]
+});
+&lt;/script&gt;</code></pre>
+
+  <h2>API Methods</h2>
+  <pre><code>// Open the chat programmatically
+SoliplexChat.open();
+
+// Close the chat
+SoliplexChat.close();
+
+// Remove the widget completely
+SoliplexChat.destroy();
+
+// Re-initialize with different config
+SoliplexChat.init({ ... });</code></pre>
+
+  <!-- Load the widget -->
+  <script src="./soliplex-chat.js"></script>
+  <script>
+    // Track current mode
+    let currentMode = null;
+
+    // Define sample tools
+    window.demoTools = {
+      getPageInfo: async function() {
+        return {
+          title: document.title,
+          url: window.location.href,
+          scrollPosition: window.scrollY
+        };
+      },
+
+      getMyLocation: function() {
+        return new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            resolve({ error: "Geolocation is not supported by this browser" });
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const lat = position.coords.latitude;
+              const lon = position.coords.longitude;
+              const result = {
+                latitude: lat,
+                longitude: lon,
+                accuracy: position.coords.accuracy,
+                timestamp: new Date(position.timestamp).toISOString(),
+                city: null,
+                country: null
+              };
+              // Reverse geocode to get city name
+              try {
+                const resp = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`,
+                  { headers: { 'User-Agent': 'SoliplexChatWidget/1.0' } }
+                );
+                if (resp.ok) {
+                  const data = await resp.json();
+                  result.city = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || null;
+                  result.country = data.address?.country || null;
+                }
+              } catch (e) {
+                // Geocoding failed, but we still have coordinates
+              }
+              resolve(result);
+            },
+            (error) => {
+              const messages = {
+                1: "User denied location access",
+                2: "Location information unavailable",
+                3: "Location request timed out"
+              };
+              resolve({ error: messages[error.code] || "Unknown error" });
+            },
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        });
+      }
+    };
+
+    // Get base URL based on environment
+    function getBaseUrl() {
+      return window.location.port === "8080"
+        ? window.location.origin  // Use nginx proxy
+        : "http://localhost:8000"; // Direct backend access
+    }
+
+    // Common tools configuration
+    function getTools() {
+      return [
+        {
+          name: "get_page_info",
+          description: "Get information about the current page",
+          parameters: { type: "object", properties: {} },
+          handler: "demoTools.getPageInfo"
+        },
+        {
+          name: "get_my_location",
+          description: "Get the user's current geographic location. Use this when 'my location' is mentioned.",
+          parameters: { type: "object", properties: {} },
+          handler: "demoTools.getMyLocation"
+        }
+      ];
+    }
+
+    // Update status display
+    function updateStatus(mode) {
+      currentMode = mode;
+      const modeText = document.getElementById('mode-text');
+      const btnSingle = document.getElementById('btn-single');
+      const btnMulti = document.getElementById('btn-multi');
+
+      // Reset button states
+      btnSingle.classList.remove('active');
+      btnMulti.classList.remove('active');
+
+      switch (mode) {
+        case 'single':
+          modeText.textContent = 'Single Room (gemini_flash) - Goes directly to chat';
+          btnSingle.classList.add('active');
+          break;
+        case 'multi':
+          modeText.textContent = 'Multi Room - Shows room selector';
+          btnMulti.classList.add('active');
+          break;
+        case 'destroyed':
+          modeText.textContent = 'Widget destroyed - Click a button to reinitialize';
+          break;
+        default:
+          modeText.textContent = 'Not initialized';
+      }
+    }
+
+    // Initialize single room widget
+    function initSingleRoomWidget() {
+      SoliplexChat.destroy();
+      SoliplexChat.init({
+        baseUrl: getBaseUrl(),
+        roomId: "gemini_flash",  // Go directly to this room
+        autoHideSeconds: 0,
+        position: "bottom-right",
+        bubbleColor: "#16a34a",  // Green to indicate single room mode
+        title: "Gemini Flash Chat",
+        tools: getTools()
+      });
+      updateStatus('single');
+    }
+
+    // Initialize multi room widget
+    function initMultiRoomWidget() {
+      SoliplexChat.destroy();
+      SoliplexChat.init({
+        baseUrl: getBaseUrl(),
+        // No roomId - show room selector
+        autoHideSeconds: 0,
+        position: "bottom-right",
+        bubbleColor: "#2563eb",  // Blue for multi room mode
+        title: "Select a Chat",
+        tools: getTools()
+      });
+      updateStatus('multi');
+    }
+
+    // Initialize with multi room mode by default
+    initMultiRoomWidget();
+  </script>
+</body>
+</html>
+</content>

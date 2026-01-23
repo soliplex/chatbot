@@ -2,7 +2,7 @@
 
 A React-based embeddable chat widget that connects to a Soliplex/PydanticAI backend using the AG-UI protocol. Supports OIDC authentication via popup flow.
 
-**[Live Demo](https://soliplex.github.io/chatbot/embed-example.html)**
+**[Live Demo](https://soliplex.github.io/chatbot/)**
 
 ## Quick Start
 
@@ -43,6 +43,7 @@ The widget will:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `baseUrl` | string | *required* | Backend API URL |
+| `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room |
 | `roomIds` | string[] | `undefined` | Optional list of room IDs to show (filters the available rooms) |
 | `title` | string | `"Chat with us"` | Chat header title |
 | `placeholder` | string | `"Ask me anything..."` | Empty state message |
@@ -50,6 +51,8 @@ The widget will:
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
 | `autoHideSeconds` | number | `0` | Auto-hide delay (0 = never) |
 | `tools` | array | `[]` | Custom client-side tools |
+
+**Note:** If `roomId` is set, the widget will skip the room selector and go directly to the specified room after authentication (if auth is enabled).
 
 ## Authentication
 
