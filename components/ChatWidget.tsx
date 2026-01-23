@@ -15,6 +15,7 @@ export interface Room {
 
 export interface ChatWidgetConfig {
   baseUrl: string;
+  roomId?: string; // Single room ID - if set, skip room selection and go directly to this room
   roomIds?: string[]; // Optional list of room IDs to show; if empty/undefined, show all
   autoHideSeconds?: number; // 0 = never hide
   position?: "bottom-right" | "bottom-left";
@@ -53,6 +54,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
 
     const {
       baseUrl,
+      roomId,
       roomIds,
       autoHideSeconds = 0,
       position = "bottom-right",
@@ -74,15 +76,44 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       getAccessToken,
     } = useAuth({ baseUrl });
 
-    // Fetch available rooms when widget opens and user is authenticated (or auth not required)
+    // Fetch room(s) when widget opens and user is authenticated (or auth not required)
     useEffect(() => {
-      const canFetchRooms = isOpen && availableRooms.length === 0 && !isLoadingRooms;
+      const canFetchRooms = isOpen && availableRooms.length === 0 && !selectedRoom && !isLoadingRooms;
       const authReady = authRequired === false || isAuthenticated;
 
       if (canFetchRooms && authReady) {
-        fetchRooms();
+        if (roomId) {
+          // Single room mode - fetch just that room
+          fetchSingleRoom(roomId);
+        } else {
+          // Multi-room mode - fetch all rooms
+          fetchRooms();
+        }
       }
-    }, [isOpen, authRequired, isAuthenticated]);
+    }, [isOpen, authRequired, isAuthenticated, roomId]);
+
+    const fetchSingleRoom = async (id: string) => {
+      setIsLoadingRooms(true);
+      setRoomsError(null);
+      try {
+        const headers: Record<string, string> = {};
+        const token = getAccessToken();
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const response = await fetch(`${baseUrl}/api/v1/rooms/${id}`, { headers });
+        if (!response.ok) {
+          throw new Error(`Failed to fetch room: ${response.status}`);
+        }
+        const roomData: Omit<Room, 'id'> = await response.json();
+        const room: Room = { ...roomData, id };
+        setSelectedRoom(room);
+      } catch (err) {
+        setRoomsError(err instanceof Error ? err.message : "Failed to load room");
+      } finally {
+        setIsLoadingRooms(false);
+      }
+    };
 
     const fetchRooms = async () => {
       setIsLoadingRooms(true);
