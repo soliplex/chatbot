@@ -10,18 +10,28 @@ Add the following to your HTML page:
 <script src="https://your-domain.com/soliplex-chat.js"></script>
 <script>
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000"
+    baseUrl: "https://my-server.example.com"
   });
 </script>
 ```
 
 That's it! A chat bubble will appear in the bottom-right corner of your page. When clicked, users will see a list of available chat rooms to choose from.
 
+If you omit `baseUrl`, the widget will prompt the user to enter a server URL when opened:
+
+```html
+<script>
+  SoliplexChat.init({
+    title: "Connect to Chat"
+  });
+</script>
+```
+
 ## Configuration Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `baseUrl` | string | *required* | Backend API URL (e.g., `http://localhost:8000`) |
+| `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
 | `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
@@ -97,7 +107,7 @@ Set `autoHideSeconds` to automatically hide the bubble after a period of inactiv
 
 ```javascript
 SoliplexChat.init({
-  baseUrl: "http://localhost:8000",
+  baseUrl: "https://my-server.example.com",
   autoHideSeconds: 15  // Hide after 15 seconds if user hasn't interacted
 });
 ```
@@ -176,7 +186,7 @@ Get information about the current page:
   };
 
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     roomIds: ["support"],
     tools: [
       {
@@ -238,7 +248,7 @@ Tools for an e-commerce site:
   };
 
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     roomIds: ["shop-assistant"],
     bubbleColor: "#f97316",
     title: "Shopping Assistant",
@@ -350,7 +360,7 @@ Tools to help users fill out forms:
   };
 
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     roomIds: ["form-helper"],
     title: "Form Assistant",
     tools: [
@@ -426,7 +436,7 @@ Tools that provide user context to the AI:
   };
 
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     roomIds: ["support"],
     tools: [
       {
@@ -503,7 +513,7 @@ Tools to help users navigate your site:
   };
 
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     roomIds: ["navigator"],
     title: "Site Guide",
     tools: [
@@ -563,7 +573,7 @@ The widget includes a built-in `get_current_time` tool that returns the current 
 ### Widget doesn't appear
 
 1. Check browser console for errors
-2. Verify `baseUrl` is correct and the backend is running
+2. Verify `baseUrl` is correct and the backend is running (or omit it to let users enter the URL manually)
 3. Ensure the script is loaded before calling `init()`
 
 ### Tools not working

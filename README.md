@@ -25,24 +25,35 @@ Add to any HTML page:
 <script src="https://soliplex.github.io/chatbot/soliplex-chat.js"></script>
 <script>
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     title: "Chat with us",
     placeholder: "Ask me anything..."
   });
 </script>
 ```
 
+If `baseUrl` is omitted, the widget will prompt the user to enter a server URL:
+
+```html
+<script>
+  SoliplexChat.init({
+    title: "Connect to Chat"
+  });
+</script>
+```
+
 The widget will:
-1. Check if authentication is required (fetches `/api/login`)
-2. If auth is configured, show a login screen with available providers
-3. After authentication (or if no auth required), fetch available rooms from `/api/v1/rooms`
-4. Display a room selector if multiple rooms exist, or auto-select if only one
+1. If no `baseUrl` is configured, show a server URL prompt
+2. Check if authentication is required (fetches `/api/login`)
+3. If auth is configured, show a login screen with available providers
+4. After authentication (or if no auth required), fetch available rooms from `/api/v1/rooms`
+5. Display a room selector if multiple rooms exist, or auto-select if only one
 
 ## Configuration Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `baseUrl` | string | *required* | Backend API URL |
+| `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
 | `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room |
 | `roomIds` | string[] | `undefined` | Optional list of room IDs to show (filters the available rooms) |
 | `title` | string | `"Chat with us"` | Chat header title |

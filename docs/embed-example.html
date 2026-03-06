@@ -60,7 +60,7 @@
 &lt;!-- Initialize the widget --&gt;
 &lt;script&gt;
   SoliplexChat.init({
-    baseUrl: "http://localhost:8000",
+    baseUrl: "https://my-server.example.com",
     // roomIds: [],  // Empty or omit to show all rooms
     // roomIds: ["room1", "room2"],  // Or specify rooms to show
     autoHideSeconds: 0,  // 0 = never hide
@@ -84,8 +84,8 @@
       <tr>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>baseUrl</code></td>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">string</td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>http://localhost:8000</em></td>
-        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Backend API URL</td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><em>undefined</em></td>
+        <td style="padding: 0.5rem; border: 1px solid #e2e8f0;">Backend API URL. If omitted, the widget prompts the user for a server URL</td>
       </tr>
       <tr>
         <td style="padding: 0.5rem; border: 1px solid #e2e8f0;"><code>roomIds</code></td>
@@ -147,7 +147,7 @@ window.myTools = {
 
 // Initialize with tools
 SoliplexChat.init({
-  baseUrl: "http://localhost:8000",
+  baseUrl: "https://my-server.example.com",
   roomId: "default-room",
   tools: [
     {
@@ -218,7 +218,7 @@ SoliplexChat.init({ ... });</code></pre>
   <h2>Auto-Hide Feature</h2>
   <p>Set <code>autoHideSeconds</code> to automatically hide the bubble after a period of inactivity:</p>
   <pre><code>SoliplexChat.init({
-  baseUrl: "http://localhost:8000",
+  baseUrl: "https://my-server.example.com",
   roomId: "default-room",
   autoHideSeconds: 10  // Hide after 10 seconds if user hasn't interacted
 });</code></pre>
@@ -288,7 +288,7 @@ SoliplexChat.init({ ... });</code></pre>
     // Initialize the widget
     function initWidget() {
       SoliplexChat.init({
-        baseUrl: "http://localhost:8000",
+        baseUrl: "https://my-server.example.com",
         // roomIds: [], // Empty or omit to show all available rooms
         // roomIds: ["mcptest"], // Or specify specific rooms to show
         autoHideSeconds: 0,
