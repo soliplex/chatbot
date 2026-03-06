@@ -14,7 +14,7 @@ export interface Room {
 }
 
 export interface ChatWidgetConfig {
-  baseUrl: string;
+  baseUrl?: string; // If not set, shows a prompt to enter the server URL
   roomId?: string; // Single room ID - if set, skip room selection and go directly to this room
   roomIds?: string[]; // Optional list of room IDs to show; if empty/undefined, show all
   autoHideSeconds?: number; // 0 = never hide
@@ -51,9 +51,9 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
     const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
     const [isLoadingRooms, setIsLoadingRooms] = useState(false);
     const [roomsError, setRoomsError] = useState<string | null>(null);
+    const [customBaseUrl, setCustomBaseUrl] = useState<string | null>(null);
 
     const {
-      baseUrl,
       roomId,
       roomIds,
       autoHideSeconds = 0,
@@ -63,7 +63,10 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       placeholder,
     } = config;
 
-    // Authentication hook
+    // Resolved baseUrl: from config or user-provided custom URL
+    const baseUrl = config.baseUrl || customBaseUrl;
+
+    // Authentication hook - only activate when we have a baseUrl
     const {
       isLoading: isAuthLoading,
       isAuthenticated,
@@ -74,7 +77,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       login,
       logout,
       getAccessToken,
-    } = useAuth({ baseUrl });
+    } = useAuth({ baseUrl: baseUrl || "", autoCheck: !!baseUrl });
 
     // Fetch room(s) when widget opens and user is authenticated (or auth not required)
     useEffect(() => {
@@ -335,8 +338,14 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
 
             {/* Content Area */}
             <div style={{ height: "calc(100% - 52px)" }}>
-              {/* Auth loading state */}
-              {isAuthLoading ? (
+              {/* Server URL prompt when baseUrl is not configured */}
+              {!baseUrl ? (
+                <ServerUrlPrompt
+                  onConnect={(url) => setCustomBaseUrl(url)}
+                  bubbleColor={bubbleColor}
+                />
+              ) : /* Auth loading state */
+              isAuthLoading ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-gray-500">Checking authentication...</div>
                 </div>
@@ -364,7 +373,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                 </div>
               ) : selectedRoom ? (
                 <ChatEmbed
-                  baseUrl={baseUrl}
+                  baseUrl={baseUrl!}
                   room={selectedRoom}
                   tools={tools}
                   placeholder={placeholder}
@@ -507,6 +516,96 @@ function LoginSelector({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Server URL prompt component (shown when baseUrl is not configured)
+function ServerUrlPrompt({
+  onConnect,
+  bubbleColor,
+}: {
+  onConnect: (url: string) => void;
+  bubbleColor: string;
+}) {
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = url.trim().replace(/\/+$/, ""); // Remove trailing slashes
+    if (!trimmed) {
+      setError("Please enter a server URL");
+      return;
+    }
+    try {
+      new URL(trimmed);
+    } catch {
+      setError("Please enter a valid URL (e.g. https://example.com)");
+      return;
+    }
+    setError(null);
+    onConnect(trimmed);
+  };
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center p-4">
+      <div
+        className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
+        style={{ backgroundColor: bubbleColor }}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-6 w-6 text-white"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+        >
+          <path
+            fillRule="evenodd"
+            d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z"
+            clipRule="evenodd"
+          />
+        </svg>
+      </div>
+      <h3 className="text-lg font-semibold mb-2" style={{ color: "#111827" }}>
+        Connect to server
+      </h3>
+      <p className="text-sm text-center mb-4" style={{ color: "#6b7280" }}>
+        Enter the URL of the Soliplex server
+      </p>
+
+      {error && (
+        <div className="w-full max-w-xs mb-4 p-3 rounded-lg text-sm text-center"
+          style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="w-full max-w-xs space-y-2">
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://example.com:8000"
+          className="w-full p-3 rounded-lg border text-base"
+          style={{
+            borderColor: "#d1d5db",
+            backgroundColor: "#ffffff",
+            color: "#111827",
+            outline: "none",
+          }}
+        />
+        <button
+          type="submit"
+          className="w-full p-3 rounded-lg text-white font-medium transition-all"
+          style={{
+            backgroundColor: bubbleColor,
+            cursor: "pointer",
+          }}
+        >
+          Connect
+        </button>
+      </form>
     </div>
   );
 }

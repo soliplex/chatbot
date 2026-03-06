@@ -53,196 +53,181 @@ export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken }: Use
       setMessages(prev => [...prev, userMessage]);
 
       try {
-        const allMessages = [...messages, userMessage];
-        const stream = await client.chat(allMessages, tools);
+        // Clean message history before sending to backend:
+        // Strip toolCalls from assistant messages and remove tool result messages.
+        // Client-side tool execution was already handled via continuation requests;
+        // the backend doesn't need this history again on subsequent messages.
+        const allMessages = [...messages, userMessage].filter(m => m.role !== "tool").map(m => {
+          if (m.toolCalls) {
+            const { toolCalls, ...rest } = m;
+            return rest as ChatMessage;
+          }
+          return m;
+        });
 
+        // Shared mutable state for stream processing
         let currentMessageId = "";
         let currentContent = "";
         let currentToolCallId = "";
         let currentToolName = "";
         let currentToolArgs = "";
-        // Track tool calls for the current assistant message
-        const pendingToolCalls: ToolCall[] = [];
 
-        for await (const event of stream) {
-          // Cast to access properties - backend uses camelCase field names
-          const evt = event as Record<string, unknown>;
+        // Process a stream of AG-UI events, handling tool calls recursively.
+        // When a client-side tool call is encountered, it executes the tool,
+        // sends a continuation request, and processes the continuation stream
+        // (which may itself contain more tool calls).
+        const MAX_TOOL_ROUNDS = 5; // Prevent infinite tool-call loops
 
-          switch (event.type) {
-            case "THINKING_TEXT_MESSAGE_CONTENT":
-              // Optional: handle intermediate thinking messages
-              break;
+        const processStream = async (
+          stream: AsyncGenerator<AGUIEvent>,
+          baseMessages: ChatMessage[],
+          depth: number = 0,
+        ) => {
+          let eventIdx = 0;
+          console.log(`[AGUI processStream] Starting at depth=${depth}`);
 
-            case "TEXT_MESSAGE_START":
-              currentMessageId = evt.messageId as string;
-              currentContent = "";
-              setMessages(prev => [
-                ...prev,
-                { id: currentMessageId, role: "assistant", content: "" },
-              ]);
-              break;
+          for await (const event of stream) {
+            eventIdx++;
+            const evt = event as Record<string, unknown>;
 
-            case "TEXT_MESSAGE_CONTENT":
-              currentContent += evt.delta as string;
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === currentMessageId
-                    ? { ...m, content: currentContent }
-                    : m
-                )
-              );
-              break;
+            // Log every event type (skip content deltas for brevity)
+            if (event.type !== "TEXT_MESSAGE_CONTENT" && event.type !== "TOOL_CALL_ARGS" && event.type !== "THINKING_TEXT_MESSAGE_CONTENT") {
+              console.log(`[AGUI processStream] depth=${depth} event #${eventIdx}: ${event.type}`, JSON.stringify(evt).slice(0, 300));
+            }
 
-            case "TEXT_MESSAGE_END":
-              // Message complete
-              break;
+            switch (event.type) {
+              case "RUN_STARTED":
+                // New run (or sub-run after server-side tool execution).
+                // Reset message tracking so the next TEXT_MESSAGE_START
+                // creates a fresh assistant message.
+                currentMessageId = "";
+                currentContent = "";
+                break;
 
-            case "TOOL_CALL_START":
-              currentToolCallId = evt.toolCallId as string;
-              currentToolName = evt.toolCallName as string;
-              currentToolArgs = "";
-              // Only create an assistant message for client-side tools
-              // Server-side tools will get their message from TEXT_MESSAGE_START
-              if (!currentMessageId && toolsMap.has(currentToolName)) {
-                currentMessageId = crypto.randomUUID();
+              case "RUN_FINISHED":
+                // Run complete — nothing to do, stream may continue
+                // with more sub-runs if the backend executed tools.
+                break;
+
+              case "THINKING_TEXT_MESSAGE_CONTENT":
+              case "THINKING_START":
+              case "THINKING_END":
+                break;
+
+              case "TEXT_MESSAGE_START":
+                currentMessageId = evt.messageId as string;
+                currentContent = "";
                 setMessages(prev => [
                   ...prev,
                   { id: currentMessageId, role: "assistant", content: "" },
                 ]);
-              }
-              break;
+                break;
 
-            case "TOOL_CALL_ARGS":
-              currentToolArgs += evt.delta as string;
-              break;
+              case "TEXT_MESSAGE_CONTENT":
+                currentContent += evt.delta as string;
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === currentMessageId
+                      ? { ...m, content: currentContent }
+                      : m
+                  )
+                );
+                break;
 
-            case "TOOL_CALL_END": {
-              // Build the tool call object for the assistant message
-              const toolCall: ToolCall = {
-                id: currentToolCallId,
-                type: "function",
-                function: {
-                  name: currentToolName,
-                  arguments: currentToolArgs || "{}",
-                },
-              };
-              pendingToolCalls.push(toolCall);
+              case "TEXT_MESSAGE_END":
+                break;
 
-              // Build the assistant message with tool calls (for sending back to server)
-              const assistantMessageWithToolCalls: ChatMessage = {
-                id: currentMessageId,
-                role: "assistant",
-                content: currentContent,
-                toolCalls: [...pendingToolCalls],
-              };
-
-              // Update assistant message with tool calls in UI
-              setMessages(prev =>
-                prev.map(m =>
-                  m.id === currentMessageId
-                    ? assistantMessageWithToolCalls
-                    : m
-                )
-              );
-
-              // Check if this is a client-side tool (defined in our tools map)
-              const isClientSideTool = toolsMap.has(currentToolName);
-
-              if (isClientSideTool) {
-                // Execute client-side tool locally
-                try {
-                  const args = JSON.parse(currentToolArgs || "{}");
-                  const result = await executeClientTool(currentToolName, args);
-
-                  // Build tool result message
-                  const toolResultMessage: ChatMessage = {
-                    id: crypto.randomUUID(),
-                    role: "tool",
-                    content: JSON.stringify(result),
-                    toolCallId: currentToolCallId,
-                    toolName: currentToolName,
-                  };
-
-                  // Add tool result to UI
-                  setMessages(prev => [...prev, toolResultMessage]);
-
-                  // Build updated message history for continuation request
-                  const updatedMessages: ChatMessage[] = [
-                    ...allMessages.slice(0, -1),
-                    userMessage,
-                    assistantMessageWithToolCalls,
-                    toolResultMessage,
-                  ];
-
-                  console.log("[AGUI] Continuing with client tool result");
-
-                  // Continue conversation with tool result
-                  const continuationStream = await client.chat(updatedMessages, tools);
-
-                  // Process the continuation response
-                  for await (const contEvent of continuationStream) {
-                    const contEvt = contEvent as Record<string, unknown>;
-
-                    switch (contEvent.type) {
-                      case "TEXT_MESSAGE_START":
-                        currentMessageId = contEvt.messageId as string;
-                        currentContent = "";
-                        setMessages(prev => [
-                          ...prev,
-                          { id: currentMessageId, role: "assistant", content: "" },
-                        ]);
-                        break;
-
-                      case "TEXT_MESSAGE_CONTENT":
-                        currentContent += contEvt.delta as string;
-                        setMessages(prev =>
-                          prev.map(m =>
-                            m.id === currentMessageId
-                              ? { ...m, content: currentContent }
-                              : m
-                          )
-                        );
-                        break;
-
-                      case "TEXT_MESSAGE_END":
-                        break;
-
-                      case "RUN_ERROR":
-                        setError(contEvt.message as string);
-                        break;
-
-                      default:
-                        // Skip noisy thinking events
-                        if (!contEvent.type.startsWith("THINKING")) {
-                          console.debug("Unhandled continuation event:", contEvent.type, contEvent);
-                        }
-                        break;
-                    }
-                  }
-                } catch (err) {
-                  console.error("Client tool execution failed:", err);
-                  setError(err instanceof Error ? err.message : "Tool execution failed");
+              case "TOOL_CALL_START":
+                currentToolCallId = evt.toolCallId as string;
+                currentToolName = evt.toolCallName as string;
+                currentToolArgs = "";
+                if (!currentMessageId && toolsMap.has(currentToolName)) {
+                  currentMessageId = crypto.randomUUID();
+                  setMessages(prev => [
+                    ...prev,
+                    { id: currentMessageId, role: "assistant", content: "" },
+                  ]);
                 }
-              } else {
-                // Server-side tool - the backend handles execution
-                // The response will come in subsequent events in the same stream
-                console.log("[AGUI] Server-side tool called:", currentToolName);
+                break;
+
+              case "TOOL_CALL_ARGS":
+                currentToolArgs += evt.delta as string;
+                break;
+
+              case "TOOL_CALL_END": {
+                const isClientSideTool = toolsMap.has(currentToolName);
+
+                if (isClientSideTool) {
+                  try {
+                    const args = JSON.parse(currentToolArgs || "{}");
+                    const result = await executeClientTool(currentToolName, args);
+                    const resultStr = JSON.stringify(result);
+
+                    // Show tool result in UI
+                    const toolResultMessage: ChatMessage = {
+                      id: crypto.randomUUID(),
+                      role: "tool",
+                      content: resultStr,
+                      toolCallId: currentToolCallId,
+                      toolName: currentToolName,
+                    };
+                    setMessages(prev => [...prev, toolResultMessage]);
+
+                    // For the continuation request, send the tool result as a plain
+                    // user message instead of formal tool_calls/tool messages.
+                    // This avoids OpenAI's "tool_calls must be followed by tool messages"
+                    // validation errors caused by the backend's own thread history
+                    // containing unmatched tool_calls.
+                    const toolResultAsUser: ChatMessage = {
+                      id: crypto.randomUUID(),
+                      role: "user",
+                      content: `[Tool "${currentToolName}" result: ${resultStr}]`,
+                    };
+
+                    const updatedMessages: ChatMessage[] = [
+                      ...baseMessages,
+                      toolResultAsUser,
+                    ];
+
+                    if (depth >= MAX_TOOL_ROUNDS) {
+                      console.warn(`[AGUI] Max tool call depth (${MAX_TOOL_ROUNDS}) reached, stopping`);
+                      setError("Too many consecutive tool calls. Please try again.");
+                    } else {
+                      console.log("[AGUI] Continuing with client tool result (depth:", depth + 1, ")");
+
+                      const continuationStream = await client.chat(updatedMessages, tools);
+
+                      // Recursively process continuation (handles nested tool calls)
+                      await processStream(
+                        continuationStream,
+                        updatedMessages,
+                        depth + 1,
+                      );
+                    }
+                  } catch (err) {
+                    console.error("Client tool execution failed:", err);
+                    setError(err instanceof Error ? err.message : "Tool execution failed");
+                  }
+                } else {
+                  console.log("[AGUI] Server-side tool called:", currentToolName);
+                }
+                break;
               }
-              break;
-            }
 
-            case "RUN_ERROR":
-              setError(evt.message as string);
-              break;
+              case "RUN_ERROR":
+                setError(evt.message as string);
+                break;
 
-            default:
-              // Log unhandled events for debugging (skip noisy thinking events)
-              if (!event.type.startsWith("THINKING")) {
+              default:
                 console.debug("Unhandled AGUI event:", event.type, event);
-              }
-              break;
+                break;
+            }
           }
-        }
+          console.log(`[AGUI processStream] Finished at depth=${depth}, processed ${eventIdx} events`);
+        };
+
+        const stream = await client.chat(allMessages, tools);
+        await processStream(stream, allMessages);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
       } finally {

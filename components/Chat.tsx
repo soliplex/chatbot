@@ -662,7 +662,7 @@ function useClientTools(): ToolDefinition[] {
       {
         name: "get_current_time",
         description:
-          "Get the current time in the user's local timezone. Use this when the user asks about the current time, date, or wants to know what time it is.",
+          "Get the current time in the user's local timezone. Only use when the user explicitly asks about the current time or date. Do not call repeatedly.",
         parameters: {
           type: "object",
           properties: {
@@ -778,9 +778,11 @@ function Chat({
     injectStyles();
   }, []);
 
-  // Combine built-in tools with external tools
+  // Only include built-in tools (get_current_time) when external tools are provided.
+  // This avoids sending unnecessary tool definitions to the LLM when the embedder
+  // hasn't opted in to client-side tools.
   const tools = useMemo(
-    () => [...builtInTools, ...externalTools],
+    () => externalTools.length > 0 ? [...builtInTools, ...externalTools] : [],
     [builtInTools, externalTools]
   );
 

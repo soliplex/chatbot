@@ -136,27 +136,55 @@ export class AGUIClient {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let eventCount = 0;
+    let chunkCount = 0;
+
+    console.log(`[AGUI SSE] Stream started for ${threadId}/${runId}`);
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      chunkCount++;
+      if (done) {
+        // Process any remaining data in the buffer
+        buffer += decoder.decode();
+        console.log(`[AGUI SSE] Stream ended after ${chunkCount} chunks, ${eventCount} events. Remaining buffer: "${buffer.slice(0, 200)}"`);
+      } else {
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        console.log(`[AGUI SSE] Chunk #${chunkCount} (${chunk.length} bytes)`);
+      }
 
-      buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
+      buffer = done ? "" : (lines.pop() || "");
 
       for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data = line.slice(6);
-          if (data === "[DONE]") return;
-          try {
-            yield JSON.parse(data) as AGUIEvent;
-          } catch {
-            // Skip malformed JSON
+        const trimmed = line.trim();
+        if (trimmed.startsWith("data: ")) {
+          const data = trimmed.slice(6);
+          if (data === "[DONE]") {
+            console.log(`[AGUI SSE] Received [DONE] after ${eventCount} events`);
+            return;
           }
+          try {
+            const parsed = JSON.parse(data) as AGUIEvent;
+            eventCount++;
+            // Log all non-content events (content events are too noisy)
+            if (parsed.type !== "TEXT_MESSAGE_CONTENT" && parsed.type !== "TOOL_CALL_ARGS" && parsed.type !== "THINKING_TEXT_MESSAGE_CONTENT") {
+              console.log(`[AGUI SSE] Event #${eventCount}:`, parsed.type, JSON.stringify(parsed).slice(0, 200));
+            }
+            yield parsed;
+          } catch {
+            console.warn(`[AGUI SSE] Malformed JSON:`, data.slice(0, 200));
+          }
+        } else if (trimmed.length > 0 && !trimmed.startsWith(":")) {
+          // Log non-empty, non-comment lines that aren't data lines
+          console.log(`[AGUI SSE] Non-data line: "${trimmed.slice(0, 100)}"`);
         }
       }
+
+      if (done) break;
     }
+    console.log(`[AGUI SSE] Loop exited. Total: ${eventCount} events from ${chunkCount} chunks`);
   }
 
   async chat(messages: ChatMessage[], tools: ToolDefinition[] = []): Promise<AsyncGenerator<AGUIEvent>> {
@@ -177,19 +205,21 @@ export class AGUIClient {
     // Build the AG-UI RunAgentInput with required thread_id and run_id
     // Assistant messages with tool calls need toolCalls array
     // Tool result messages need toolCallId field
+    // Format messages for the backend using snake_case field names
+    // (OpenAI expects tool_calls / tool_call_id, not camelCase)
     const formattedMessages = messages.map((m, idx) => {
-      const base: AGUIMessage = {
+      const base: Record<string, unknown> = {
         id: `msg_${idx}`,
         role: m.role,
         content: m.content,
       };
       // Assistant messages may have tool calls
       if (m.role === "assistant" && m.toolCalls && m.toolCalls.length > 0) {
-        base.toolCalls = m.toolCalls;
+        base.tool_calls = m.toolCalls;
       }
-      // Tool result messages must include toolCallId
+      // Tool result messages must include tool_call_id
       if (m.role === "tool" && m.toolCallId) {
-        base.toolCallId = m.toolCallId;
+        base.tool_call_id = m.toolCallId;
       }
       return base;
     });
@@ -240,7 +270,7 @@ export interface RunAgentInput {
   thread_id: string;
   run_id: string;
   parent_run_id?: string | null;
-  messages: AGUIMessage[];
+  messages: Record<string, unknown>[];
   tools?: ToolDef[];
   context?: ContextItem[];
   state?: Record<string, unknown> | null;

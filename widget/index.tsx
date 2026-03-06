@@ -261,7 +261,7 @@ function init(config: WidgetInitConfig) {
 
   // Extract widget config
   const widgetConfig: ChatWidgetConfig = {
-    baseUrl: config.baseUrl,
+    baseUrl: config.baseUrl, // May be undefined - widget will show server URL prompt
     roomIds: roomIds,
     autoHideSeconds: config.autoHideSeconds,
     position: config.position,
