@@ -232,30 +232,6 @@ function injectStyles() {
       transform: translateY(0);
     }
 
-    /* Background image support */
-    .soliplex-chat-messages.has-bg-image {
-      position: relative;
-    }
-
-    .soliplex-chat-messages.has-bg-image .soliplex-bubble-assistant {
-      background: rgba(248, 250, 252, 0.95);
-    }
-
-    .soliplex-chat-messages.has-bg-image .soliplex-chat-empty {
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: var(--chat-radius-lg);
-      padding: 24px;
-      margin: 20px;
-    }
-
-    .soliplex-chat-messages.has-bg-image .soliplex-typing-bubble {
-      background: rgba(248, 250, 252, 0.95);
-    }
-
-    .soliplex-chat-messages.has-bg-image .soliplex-error {
-      background: rgba(254, 242, 242, 0.95);
-    }
-
     /* Message Base */
     .soliplex-msg {
       display: flex;
@@ -752,7 +728,6 @@ interface ChatProps {
   title?: string;
   roomDescription?: string;
   suggestions?: string[];
-  backgroundImage?: string | null;
   getAccessToken?: () => string | null;
 }
 
@@ -765,7 +740,6 @@ function Chat({
   title = "AI Assistant",
   roomDescription,
   suggestions = [],
-  backgroundImage,
   getAccessToken,
 }: ChatProps) {
   const [input, setInput] = useState("");
@@ -844,16 +818,7 @@ function Chat({
       )}
 
       {/* Messages */}
-      <div
-        className={`soliplex-chat-messages${backgroundImage ? ' has-bg-image' : ''}`}
-        style={backgroundImage ? {
-          backgroundImage: `url(${backgroundImage})`,
-          backgroundSize: 'contain',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'local',
-        } : undefined}
-      >
+      <div className="soliplex-chat-messages">
         {messages.length === 0 ? (
           <EmptyState
             roomDescription={roomDescription}
