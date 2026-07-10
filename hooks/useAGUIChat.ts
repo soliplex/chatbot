@@ -1,5 +1,5 @@
 // hooks/useAGUIChat.ts
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { AGUIClient, AGUIEvent, ToolDefinition, ToolCall, ChatMessage } from "@/lib/agui-client";
 
 // Re-export for consumers
@@ -10,10 +10,33 @@ interface UseAGUIChatOptions {
   roomId: string;
   tools?: ToolDefinition[];
   getAccessToken?: () => string | null;
+  /** When true, render raw tool-call results as JSON in the chat. */
+  debug?: boolean;
+  /**
+   * When true (default), the thread id and message history are stored in
+   * localStorage so the conversation resumes across page reloads.
+   */
+  persist?: boolean;
 }
 
-export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken }: UseAGUIChatOptions) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken, debug = false, persist = true }: UseAGUIChatOptions) {
+  // Storage keys are scoped per server + room so multiple widgets on the same
+  // page don't clobber each other's history.
+  const messagesKey = `soliplex-chat:${baseUrl}:${roomId}:messages`;
+  const threadKey = `soliplex-chat:${baseUrl}:${roomId}:thread`;
+
+  const canPersist = persist && typeof window !== "undefined";
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (!canPersist) return [];
+    try {
+      const raw = window.localStorage.getItem(messagesKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? (parsed as ChatMessage[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,9 +49,31 @@ export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken }: Use
   const getClient = useCallback(() => {
     if (!clientRef.current) {
       clientRef.current = new AGUIClient({ baseUrl, roomId, getAccessToken });
+      // Resume the previous backend thread, if one was persisted.
+      if (canPersist) {
+        const storedThreadId = window.localStorage.getItem(threadKey);
+        if (storedThreadId) clientRef.current.setThreadId(storedThreadId);
+      }
     }
     return clientRef.current;
-  }, [baseUrl, roomId, getAccessToken]);
+  }, [baseUrl, roomId, getAccessToken, canPersist, threadKey]);
+
+  // Persist message history (and the current thread id) once a turn settles.
+  // Skipping writes while streaming avoids hitting localStorage on every token.
+  useEffect(() => {
+    if (!canPersist || isLoading) return;
+    try {
+      if (messages.length === 0) {
+        window.localStorage.removeItem(messagesKey);
+      } else {
+        window.localStorage.setItem(messagesKey, JSON.stringify(messages));
+      }
+      const threadId = clientRef.current?.getThreadId();
+      if (threadId) window.localStorage.setItem(threadKey, threadId);
+    } catch {
+      // Ignore quota / serialization errors; persistence is best-effort.
+    }
+  }, [messages, isLoading, canPersist, messagesKey, threadKey]);
 
   const executeClientTool = useCallback(
     async (toolName: string, args: Record<string, unknown>) => {
@@ -163,15 +208,19 @@ export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken }: Use
                     const result = await executeClientTool(currentToolName, args);
                     const resultStr = JSON.stringify(result);
 
-                    // Show tool result in UI
-                    const toolResultMessage: ChatMessage = {
-                      id: crypto.randomUUID(),
-                      role: "tool",
-                      content: resultStr,
-                      toolCallId: currentToolCallId,
-                      toolName: currentToolName,
-                    };
-                    setMessages(prev => [...prev, toolResultMessage]);
+                    // Show the raw tool result in the UI only in debug mode.
+                    // Otherwise the result is still sent to the backend (below)
+                    // and surfaced to the user via the assistant's reply.
+                    if (debug) {
+                      const toolResultMessage: ChatMessage = {
+                        id: crypto.randomUUID(),
+                        role: "tool",
+                        content: resultStr,
+                        toolCallId: currentToolCallId,
+                        toolName: currentToolName,
+                      };
+                      setMessages(prev => [...prev, toolResultMessage]);
+                    }
 
                     // For the continuation request, send the tool result as a plain
                     // user message instead of formal tool_calls/tool messages.
@@ -234,13 +283,21 @@ export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken }: Use
         setIsLoading(false);
       }
     },
-    [messages, tools, getClient, executeClientTool]
+    [messages, tools, getClient, executeClientTool, debug]
   );
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     clientRef.current = null; // Reset thread
-  }, []);
+    if (canPersist) {
+      try {
+        window.localStorage.removeItem(messagesKey);
+        window.localStorage.removeItem(threadKey);
+      } catch {
+        // Best-effort cleanup.
+      }
+    }
+  }, [canPersist, messagesKey, threadKey]);
 
   return {
     messages,

@@ -38,6 +38,8 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `bubbleColor` | string | `"#2563eb"` | CSS color for the chat bubble |
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
 | `placeholder` | string | - | Placeholder text for empty chat (overrides room's welcome message) |
+| `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
+| `debug` | boolean | `false` | Render raw client-side tool-call results as JSON in the chat |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
 
@@ -567,6 +569,92 @@ Tools to help users navigate your site:
 ## Built-in Tools
 
 The widget includes a built-in `get_current_time` tool that returns the current time in the user's local timezone. This is automatically available without any configuration.
+
+## Plone Integration
+
+A ready-made set of Plone tools ships as a companion script, `plone_soliplex_tool.js`, served alongside the widget bundle. It exposes a small [plone.restapi](https://plonerestapi.readthedocs.io/) client on `window.PloneSoliplex` and a set of tool definitions the agent can use to work with the logged-in user's content.
+
+### Quick Start
+
+```html
+<script src="soliplex-chat.js"></script>
+<script src="plone_soliplex_tool.js"></script>
+<script>
+  SoliplexChat.init({
+    baseUrl: "https://soliplex.example.com",
+    roomId: "assistant",
+    tools: PloneSoliplex.getToolDefinitions(),
+  });
+</script>
+```
+
+Once wired up, users can ask questions such as **"What are the most recent changes in my folder?"** — the agent calls `plone_get_current_user` to identify the user, then `plone_recent_changes_in_my_folder` to list the most recently modified content.
+
+### Provided Tools
+
+| Tool | Description |
+|------|-------------|
+| `plone_get_current_user` | Id, full name, email and roles of the logged-in user |
+| `plone_recent_changes_in_my_folder` | Most recently modified items in the user's personal folder (falls back to content the user authored anywhere on the site) |
+| `plone_search` | Catalog search (`@search`) with text / type / path / creator / workflow-state filters |
+| `plone_list_folder_contents` | List the immediate children of a folder |
+| `plone_get_content` | Fetch a single content item by path |
+
+Tools that take a `path` accept the `path` or `url` value from a previous result (or a site-relative path); the client normalizes it, so paths that already include the site id (e.g. `/Plone/...`) are not duplicated.
+
+### Authentication
+
+The tools authenticate the same way the browser already does, so no extra setup is needed on a same-origin Plone site:
+
+1. If a Plone/Volto JWT is present in `localStorage` (Volto's default key is `auth_token`), it is sent as a `Bearer` token.
+2. Otherwise, same-origin session cookies are sent (`credentials: "include"`), which covers Plone Classic logins.
+3. As a last resort, the Soliplex widget's own OIDC token is reused (useful when Plone and Soliplex share an identity provider).
+
+The current user id is read from the JWT `sub` / `preferred_username` claim. The server still enforces authorization on every request — the token is only used as a client-side identity hint.
+
+**Cookie-only sessions (Plone Classic):** when there is no JWT, the user id cannot be derived on the client (the `__ac` cookie is `HttpOnly` and opaque). As a final fallback, the client asks the server via the `@logged-in-user` endpoint (configurable with `loggedInUserEndpoint`), which returns `{ userid, fullname, email }` for the authenticated session. If that endpoint is not installed it responds with `404` and the client simply reports the user as unknown. You can also supply the id yourself from a template with `PloneSoliplex.configure({ userId })`.
+
+### Configuration
+
+Call `PloneSoliplex.configure(...)` before `SoliplexChat.init(...)` to override defaults:
+
+```javascript
+PloneSoliplex.configure({
+  baseUrl: "https://plone.example.com", // site root; auto-detected when omitted
+  memberFolderBase: "/Members",         // where per-user folders live
+  userId: "bob",                        // force a user id if auto-detection fails
+  getUserId: () => window.myApp.currentUser, // or provide a resolver (may be async)
+  allowWrites: false,                   // keep the REST client read-only (default)
+  defaultLimit: 10,                     // default number of search results
+});
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `baseUrl` | auto-detected | Plone site root that plone.restapi is served from |
+| `token` | `null` | Explicit Bearer token (skips localStorage lookup) |
+| `tokenKey` | `"auth_token"` | localStorage key holding the Plone/Volto JWT |
+| `useSoliplexToken` | `true` | Fall back to the Soliplex widget's OIDC token |
+| `userId` | `null` | Force a specific user id |
+| `getUserId` | `null` | Callback returning the user id (may be async) |
+| `memberFolderBase` | `"/Members"` | Base path for per-user folders |
+| `allowWrites` | `false` | Allow non-GET REST requests |
+| `defaultLimit` | `10` | Default number of search results |
+| `loggedInUserEndpoint` | `"@logged-in-user"` | Server endpoint for resolving the user from a cookie session (set to `null` to disable) |
+
+### Using the client directly
+
+Every helper is also available programmatically on `window.PloneSoliplex`:
+
+```javascript
+await PloneSoliplex.getCurrentUser();
+await PloneSoliplex.getRecentChangesInMyFolder({ limit: 5 });
+await PloneSoliplex.search({ text: "budget", portal_type: "File" });
+await PloneSoliplex.listFolderContents("/news", { limit: 20 });
+await PloneSoliplex.getContent("/news/my-item");
+```
+
+See [plone-example.html](plone-example.html) for a complete embed example.
 
 ## Troubleshooting
 

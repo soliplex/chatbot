@@ -268,6 +268,8 @@ function init(config: WidgetInitConfig) {
     bubbleColor: config.bubbleColor,
     title: config.title,
     placeholder: config.placeholder,
+    debug: config.debug,
+    persist: config.persist,
   };
 
   // Create React root and render

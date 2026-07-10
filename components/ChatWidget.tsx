@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
+import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import Chat from "./Chat";
 import { useAuth, type AuthSystem } from "@/hooks/useAuth";
 
@@ -22,6 +22,8 @@ export interface ChatWidgetConfig {
   bubbleColor?: string;
   title?: string;
   placeholder?: string;
+  debug?: boolean; // If true, show raw tool-call results as JSON in the chat
+  persist?: boolean; // Resume the conversation across reloads (default true)
 }
 
 export interface ChatWidgetRef {
@@ -44,7 +46,21 @@ interface ChatWidgetProps {
 
 const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
   function ChatWidget({ config, tools = [], onOpenChange }, ref) {
-    const [isOpen, setIsOpen] = useState(false);
+    // Widget open/room state is persisted (scoped per server) so a reload
+    // reopens the widget in the room the user was last using.
+    const persistWidgetState =
+      (config.persist ?? true) && typeof window !== "undefined";
+    const openKey = `soliplex-widget:${config.baseUrl ?? ""}:open`;
+    const roomKey = `soliplex-widget:${config.baseUrl ?? ""}:room`;
+
+    const [isOpen, setIsOpen] = useState<boolean>(() => {
+      if (!persistWidgetState) return false;
+      try {
+        return window.localStorage.getItem(openKey) === "1";
+      } catch {
+        return false;
+      }
+    });
     const [isVisible, setIsVisible] = useState(true);
     const [hasInteracted, setHasInteracted] = useState(false);
     const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
@@ -52,6 +68,43 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
     const [isLoadingRooms, setIsLoadingRooms] = useState(false);
     const [roomsError, setRoomsError] = useState<string | null>(null);
     const [customBaseUrl, setCustomBaseUrl] = useState<string | null>(null);
+
+    // Populated by the embedded Chat so the header can start a new conversation.
+    const resetChatRef = useRef<(() => void) | null>(null);
+    const handleRegisterReset = useCallback((reset: () => void) => {
+      resetChatRef.current = reset;
+    }, []);
+
+    // Remember whether the widget is open across reloads.
+    useEffect(() => {
+      if (!persistWidgetState) return;
+      try {
+        window.localStorage.setItem(openKey, isOpen ? "1" : "0");
+      } catch {
+        // Best-effort.
+      }
+    }, [isOpen, persistWidgetState, openKey]);
+
+    // Remember which room is selected across reloads. Only write on select;
+    // clearing is done explicitly when the user leaves a room, so the initial
+    // null state on mount doesn't wipe the id before it can be restored.
+    useEffect(() => {
+      if (!persistWidgetState || !selectedRoom) return;
+      try {
+        window.localStorage.setItem(roomKey, selectedRoom.id);
+      } catch {
+        // Best-effort.
+      }
+    }, [selectedRoom, persistWidgetState, roomKey]);
+
+    const clearPersistedRoom = useCallback(() => {
+      if (!persistWidgetState) return;
+      try {
+        window.localStorage.removeItem(roomKey);
+      } catch {
+        // Best-effort.
+      }
+    }, [persistWidgetState, roomKey]);
 
     const {
       roomId,
@@ -61,6 +114,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       bubbleColor = "#2563eb",
       title = "Chat with us",
       placeholder,
+      debug = false,
+      persist = true,
     } = config;
 
     // Resolved baseUrl: from config or user-provided custom URL
@@ -146,8 +201,22 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
 
         setAvailableRooms(rooms);
 
-        // Auto-select if only one room
-        if (rooms.length === 1) {
+        // Restore the room the user was last in (across reloads), else
+        // auto-select when there's only one room.
+        let restoredRoomId: string | null = null;
+        if (persistWidgetState) {
+          try {
+            restoredRoomId = window.localStorage.getItem(roomKey);
+          } catch {
+            restoredRoomId = null;
+          }
+        }
+        const restoredRoom = restoredRoomId
+          ? rooms.find((room) => room.id === restoredRoomId)
+          : undefined;
+        if (restoredRoom) {
+          setSelectedRoom(restoredRoom);
+        } else if (rooms.length === 1) {
           setSelectedRoom(rooms[0]);
         }
       } catch (err) {
@@ -208,7 +277,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
 
     const handleBackToRooms = useCallback(() => {
       setSelectedRoom(null);
-    }, []);
+      clearPersistedRoom();
+    }, [clearPersistedRoom]);
 
     const handleLogout = useCallback(() => {
       logout();
@@ -216,7 +286,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       setAvailableRooms([]);
       setSelectedRoom(null);
       setRoomsError(null);
-    }, [logout]);
+      clearPersistedRoom();
+    }, [logout, clearPersistedRoom]);
 
     // Show bubble on mouse movement near edge (if hidden)
     useEffect(() => {
@@ -292,6 +363,28 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                 </span>
               </div>
               <div className="flex items-center gap-1">
+                {/* Start a new conversation - only while chatting in a room */}
+                {selectedRoom && (
+                  <button
+                    onClick={() => resetChatRef.current?.()}
+                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    aria-label="Start new conversation"
+                    title="Start new conversation"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
                 {/* Logout button - only show when authenticated */}
                 {isAuthenticated && (
                   <button
@@ -378,6 +471,9 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                   tools={tools}
                   placeholder={placeholder}
                   getAccessToken={getAccessToken}
+                  debug={debug}
+                  persist={persist}
+                  onRegisterReset={handleRegisterReset}
                 />
               ) : (
                 <RoomSelector
@@ -678,6 +774,9 @@ function ChatEmbed({
   tools,
   placeholder,
   getAccessToken,
+  debug,
+  persist,
+  onRegisterReset,
 }: {
   baseUrl: string;
   room: Room;
@@ -689,6 +788,9 @@ function ChatEmbed({
   }>;
   placeholder?: string;
   getAccessToken?: () => string | null;
+  debug?: boolean;
+  persist?: boolean;
+  onRegisterReset?: (reset: () => void) => void;
 }) {
   return (
     <div className="h-full">
@@ -701,6 +803,9 @@ function ChatEmbed({
         roomDescription={room.description}
         suggestions={room.suggestions}
         getAccessToken={getAccessToken}
+        debug={debug}
+        persist={persist}
+        onRegisterReset={onRegisterReset}
       />
     </div>
   );

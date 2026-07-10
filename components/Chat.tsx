@@ -355,6 +355,34 @@ function injectStyles() {
       margin: 4px 0;
     }
 
+    .soliplex-bubble-assistant a {
+      color: var(--chat-primary);
+      text-decoration: underline;
+      word-break: break-word;
+    }
+
+    .soliplex-bubble-assistant a:hover {
+      opacity: 0.85;
+    }
+
+    .soliplex-bubble-assistant h1,
+    .soliplex-bubble-assistant h2,
+    .soliplex-bubble-assistant h3,
+    .soliplex-bubble-assistant h4,
+    .soliplex-bubble-assistant h5,
+    .soliplex-bubble-assistant h6 {
+      margin: 10px 0 6px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .soliplex-bubble-assistant h1 { font-size: 1.3em; }
+    .soliplex-bubble-assistant h2 { font-size: 1.2em; }
+    .soliplex-bubble-assistant h3 { font-size: 1.1em; }
+    .soliplex-bubble-assistant h4,
+    .soliplex-bubble-assistant h5,
+    .soliplex-bubble-assistant h6 { font-size: 1em; }
+
     /* Tool Message */
     .soliplex-tool-msg {
       display: flex;
@@ -699,20 +727,124 @@ function useClientTools(): ToolDefinition[] {
 // =============================================================================
 
 /**
- * Simple markdown-to-HTML converter for common patterns
+ * Escape HTML special characters so raw model output can't inject markup.
+ */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Only allow safe URL schemes in links; anything else becomes an inert anchor.
+ */
+function sanitizeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (/^(https?:\/\/|mailto:|tel:|\/|#|\.\/|\.\.\/)/i.test(trimmed)) {
+    return trimmed;
+  }
+  return "#";
+}
+
+/**
+ * Inline markdown (links, emphasis) for a single, already HTML-escaped line.
+ */
+function parseInlineMarkdown(text: string): string {
+  return text
+    // Markdown links: [text](url) with an optional "title"
+    .replace(
+      /\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
+      (_m, label, url) =>
+        `<a href="${sanitizeUrl(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+    )
+    // Bare URLs (not already inside an href="...") become links
+    .replace(
+      /(^|[\s(])(https?:\/\/[^\s<]+)/g,
+      (_m, pre, url) =>
+        `${pre}<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+    )
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    // Italic
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+}
+
+/**
+ * Simple markdown-to-HTML converter for common patterns. Code is extracted
+ * first so its contents are never treated as markdown, the remaining text is
+ * HTML-escaped, and block-level constructs (headings, lists) are parsed line
+ * by line before inline markdown is applied.
  */
 function parseSimpleMarkdown(text: string): string {
-  return text
-    // Code blocks (must come before inline code)
-    .replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code>$1</code>')
-    // Bold
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    // Italic
-    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
-    // Line breaks
-    .replace(/\n/g, '<br />');
+  const codeBlocks: string[] = [];
+  let src = text.replace(
+    /```(\w*)\n?([\s\S]*?)```/g,
+    (_m, _lang, code) => {
+      codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
+      return ` CODE${codeBlocks.length - 1} `;
+    }
+  );
+
+  const inlineCodes: string[] = [];
+  src = src.replace(/`([^`]+)`/g, (_m, code) => {
+    inlineCodes.push(`<code>${escapeHtml(code)}</code>`);
+    return ` ICODE${inlineCodes.length - 1} `;
+  });
+
+  src = escapeHtml(src);
+
+  const out: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  const closeList = () => {
+    if (listType) {
+      out.push(`</${listType}>`);
+      listType = null;
+    }
+  };
+
+  for (const line of src.split("\n")) {
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    const ulItem = line.match(/^\s*[-*+]\s+(.*)$/);
+    const olItem = line.match(/^\s*\d+\.\s+(.*)$/);
+
+    if (heading) {
+      closeList();
+      const level = heading[1].length;
+      out.push(`<h${level}>${parseInlineMarkdown(heading[2])}</h${level}>`);
+    } else if (ulItem) {
+      if (listType !== "ul") {
+        closeList();
+        out.push("<ul>");
+        listType = "ul";
+      }
+      out.push(`<li>${parseInlineMarkdown(ulItem[1])}</li>`);
+    } else if (olItem) {
+      if (listType !== "ol") {
+        closeList();
+        out.push("<ol>");
+        listType = "ol";
+      }
+      out.push(`<li>${parseInlineMarkdown(olItem[1])}</li>`);
+    } else if (line.trim() === "") {
+      closeList();
+      out.push("");
+    } else if (/^ CODE\d+ $/.test(line)) {
+      // A fenced code-block placeholder on its own line; leave it untouched.
+      closeList();
+      out.push(line);
+    } else {
+      closeList();
+      out.push(`${parseInlineMarkdown(line)}<br />`);
+    }
+  }
+  closeList();
+
+  let html = out.join("\n");
+  html = html.replace(/ ICODE(\d+) /g, (_m, i) => inlineCodes[+i]);
+  html = html.replace(/ CODE(\d+) /g, (_m, i) => codeBlocks[+i]);
+  return html;
 }
 
 // =============================================================================
@@ -729,6 +861,14 @@ interface ChatProps {
   roomDescription?: string;
   suggestions?: string[];
   getAccessToken?: () => string | null;
+  debug?: boolean;
+  /** Persist the conversation across reloads (default true). */
+  persist?: boolean;
+  /**
+   * Receives a callback that starts a new conversation. Lets a parent (e.g.
+   * the floating widget's own header) trigger a reset from outside.
+   */
+  onRegisterReset?: (reset: () => void) => void;
 }
 
 function Chat({
@@ -741,6 +881,9 @@ function Chat({
   roomDescription,
   suggestions = [],
   getAccessToken,
+  debug = false,
+  persist = true,
+  onRegisterReset,
 }: ChatProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -766,7 +909,14 @@ function Chat({
       roomId,
       tools,
       getAccessToken,
+      debug,
+      persist,
     });
+
+  // Expose the reset action so an external header can start a new conversation.
+  useEffect(() => {
+    onRegisterReset?.(clearMessages);
+  }, [onRegisterReset, clearMessages]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -809,8 +959,8 @@ function Chat({
           <button
             onClick={clearMessages}
             className="soliplex-chat-header-btn"
-            title="Clear conversation"
-            aria-label="Clear conversation"
+            title="Start new conversation"
+            aria-label="Start new conversation"
           >
             <Icons.Trash />
           </button>
