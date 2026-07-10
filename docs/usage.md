@@ -116,6 +116,42 @@ SoliplexChat.init({
 
 The bubble will reappear when the user moves their mouse near the corner where it was positioned.
 
+## Authentication
+
+Some Soliplex servers require the user to sign in before they can chat. When the backend has one or more authentication systems configured (returned from `<baseUrl>/api/login`), the widget automatically shows a login screen listing the available providers and runs an OpenID Connect (OIDC) sign-in in a **popup window**.
+
+You don't need to write any code to enable this — but you **do** need to host the callback page described below.
+
+### Hosting the callback page
+
+After the identity provider authenticates the user, it redirects the popup to a small landing page that hands the tokens back to the widget. That page ships with the widget as **`soliplex-auth-callback.html`**, and you must serve it **on the same origin and in the same directory as the page that embeds the widget** (right next to `soliplex-chat.js`):
+
+```
+your-site/
+├── index.html                    <- embeds the widget
+├── soliplex-chat.js
+└── soliplex-auth-callback.html   <- required for login
+```
+
+The widget derives the callback URL from the current page's directory — `<origin><current-directory>/soliplex-auth-callback.html` — so keep the file name unchanged and make sure it sits alongside your page. If it is missing, the popup shows a 404 and login fails.
+
+> If you don't already have `soliplex-auth-callback.html`, copy it from the widget distribution (it lives next to `soliplex-chat.js`).
+
+### How the flow works
+
+1. The user picks a provider; the widget opens a popup to `<baseUrl>/api/login/<system>?return_to=<callback-url>`.
+2. The user authenticates with the identity provider.
+3. The provider redirects the popup back to your `soliplex-auth-callback.html` with the tokens on the query string (`?token=…&refresh_token=…&expires_in=…`).
+4. The callback page posts the tokens to the widget with `postMessage`. The widget verifies the message origin (it must match the page origin or the Soliplex `baseUrl`) and then closes the popup.
+5. Tokens are stored in `localStorage` under `soliplex-auth` and automatically attached as an `Authorization: Bearer …` header on every backend request. The session is restored on reload until the token expires; use the header's logout button to clear it.
+
+### Requirements & troubleshooting
+
+- **Serve the page over HTTPS from a stable origin.** The callback URL is sent to the backend as `return_to`, so it must be an allowed redirect target in your Soliplex / identity-provider configuration.
+- **Allow popups.** If the browser blocks the popup, the widget reports *"Failed to open authentication popup. Please allow popups for this site."* Retry after allowing them.
+- **404 / "No authentication tokens received":** the callback file is missing or not in the same directory as your page — copy `soliplex-auth-callback.html` next to it.
+- **Nothing happens after signing in:** the popup's origin doesn't match the page origin or the configured `baseUrl`. Make sure both your page and the callback page are served from the same origin.
+
 ## Client-Side Tools
 
 Tools allow the AI agent to execute JavaScript functions in the user's browser. This is useful for:
@@ -573,6 +609,8 @@ The widget includes a built-in `get_current_time` tool that returns the current 
 ## Plone Integration
 
 A ready-made set of Plone tools ships as a companion script, `plone_soliplex_tool.js`, served alongside the widget bundle. It exposes a small [plone.restapi](https://plonerestapi.readthedocs.io/) client on `window.PloneSoliplex` and a set of tool definitions the agent can use to work with the logged-in user's content.
+
+> **Adding this to an actual Plone site?** See the step-by-step [Plone integration guide](plone-integration.md) for how to serve and load `plone_soliplex_tool.js` on Plone 6 (Classic UI and Volto). The section below is a quick reference for the API it exposes.
 
 ### Quick Start
 

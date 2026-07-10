@@ -274,6 +274,7 @@ The widget accepts a `bubbleColor` prop. For deeper theming, modify the `ChatWid
 
 ## Related Documentation
 
-- [Widget Usage Guide](./usage.md) - Embedding and tool examples
+- [Widget Usage Guide](./usage.md) - Embedding, authentication, and tool examples
+- [Plone Integration Guide](./plone-integration.md) - Adding the Plone tools to a Plone 6 site
 - [AG-UI Protocol](https://github.com/ag-ui-org/ag-ui) - Protocol specification
 - [PydanticAI](https://ai.pydantic.dev/) - Backend agent framework
