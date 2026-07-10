@@ -1,4 +1,4 @@
-**[Live Demo](https://soliplex.github.io/chatbot/embed-example.html)**
+**[Live Demo](https://soliplex.github.io/chatbot/)**
 
 # Soliplex Chat Widget
 
@@ -22,11 +22,14 @@ A React-based embeddable chat widget that connects to a Soliplex/PydanticAI back
 ├── widget/
 │   └── index.tsx          # Embeddable widget entry point
 ├── public/
+│   ├── index.html         # Live demo page (deployed to GitHub Pages)
 │   ├── soliplex-chat.js   # Built widget bundle (after build)
-│   └── embed-example.html # Example embed page
+│   └── soliplex-auth-callback.html # OIDC popup callback page
 ├── docs/
 │   ├── readme.md          # This file
-│   └── usage.md           # Widget usage guide
+│   ├── usage.md           # Widget usage guide
+│   ├── plone-integration.md # Guide for embedding on a Plone site
+│   └── embed-example.html # Example embed page
 ├── esbuild.config.mjs     # Widget build configuration
 ├── package.json
 ├── tsconfig.json
@@ -145,13 +148,13 @@ For rapid widget development:
 npm run build:widget:watch
 ```
 
-Then serve the `public/` directory and open `embed-example.html`:
+Then serve the `public/` directory and open the demo page (`index.html`):
 
 ```bash
 # In another terminal
 cd public
 python -m http.server 8080
-# Open http://localhost:8080/embed-example.html
+# Open http://localhost:8080/
 ```
 
 ### Testing Changes
