@@ -41,6 +41,79 @@ The provided tools are: `plone_get_current_user`,
   `soliplex-auth-callback.html`, hosted next to the page that embeds the widget.
   See [Authentication](usage.md#authentication) for details.
 
+> **⚠️ Cookie sessions need a "current user" endpoint you must add yourself.**
+> With Plone's default authentication the browser session lives in the
+> `__ac` cookie, which is `HttpOnly` and opaque — so client-side JavaScript
+> cannot read the logged-in user's id from it. **plone.restapi does not ship an
+> endpoint that returns the authenticated user for a cookie session**, so the
+> tools cannot identify the user (`plone_get_current_user`,
+> `plone_recent_changes_in_my_folder`, etc. will report the user as unknown)
+> unless you provide one.
+>
+> Add a small REST service — the tools call `@logged-in-user` by default (see
+> `loggedInUserEndpoint`) and expect it to return `{ userid, fullname, email }`
+> for an authenticated session, or a `401` when anonymous.
+>
+> This does **not** apply if a Volto/JWT token is present (the id is read from
+> the token's `sub` claim) or if you set `userId` / `getUserId` explicitly via
+> `PloneSoliplex.configure(...)`.
+
+### Adding the `@logged-in-user` endpoint
+
+A minimal implementation registers a GET service on the site root. A complete,
+working example lives at
+`/trabajo/runyan/ESP/ploud/backend/sources/esp-library/src/esp/library/restapi`
+— reproduced here:
+
+```python
+# logged_in_user.py
+from plone import api
+from plone.restapi.services import Service
+
+
+class LoggedInUserGet(Service):
+    """Return the userid, fullname and email of the currently logged in user."""
+
+    def reply(self):
+        user = api.user.get_current()
+        if user is None or api.user.is_anonymous():
+            self.request.response.setStatus(401)
+            return {
+                "error": {
+                    "type": "Unauthorized",
+                    "message": "No user is logged in.",
+                }
+            }
+
+        return {
+            "userid": user.getId(),
+            "fullname": user.getProperty("fullname") or "",
+            "email": user.getProperty("email") or "",
+        }
+```
+
+```xml
+<!-- configure.zcml -->
+<configure
+    xmlns="http://namespaces.zope.org/zope"
+    xmlns:plone="http://namespaces.plone.org/plone">
+
+  <plone:service
+      method="GET"
+      factory=".logged_in_user.LoggedInUserGet"
+      for="plone.base.interfaces.IPloneSiteRoot"
+      permission="zope2.View"
+      name="@logged-in-user"
+      />
+
+</configure>
+```
+
+Once this ships in an add-on installed on the site, the client resolves the
+current user from the cookie session automatically. If you name the endpoint
+differently, point the tools at it with
+`PloneSoliplex.configure({ loggedInUserEndpoint: "@your-endpoint" })`.
+
 ## Step 1: Make the scripts available to your site
 
 Both scripts must be reachable from the browser. For the smoothest
@@ -159,8 +232,11 @@ order:
 
 For cookie-only Classic sessions the user id can't be read on the client (the
 `__ac` cookie is `HttpOnly`). The client then asks the server via the
-`@logged-in-user` endpoint; if it isn't installed you can supply the id yourself
-with `PloneSoliplex.configure({ userId })`. See the
+`@logged-in-user` endpoint — which **plone.restapi does not provide, so you must
+add it yourself** (see
+[Adding the `@logged-in-user` endpoint](#adding-the-logged-in-user-endpoint)).
+If it isn't installed you can instead supply the id yourself with
+`PloneSoliplex.configure({ userId })`. See the
 [Authentication reference](usage.md#authentication) in the usage guide, and the
 `PloneSoliplex.configure` [options table](usage.md#configuration) for the full
 list of knobs (`baseUrl`, `token`, `tokenKey`, `useSoliplexToken`, `userId`,
