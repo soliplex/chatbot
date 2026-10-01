@@ -35,7 +35,8 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
-| `bubbleColor` | string | `"#2563eb"` | CSS color for the chat bubble |
+| `bubbleColor` | string | Soliplex primary | CSS color for the launcher bubble and primary buttons; the icon/label color on top of it is picked automatically for contrast |
+| `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
 | `placeholder` | string | - | Placeholder text for empty chat (overrides room's welcome message) |
 | `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
