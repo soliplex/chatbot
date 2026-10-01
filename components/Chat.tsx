@@ -783,14 +783,14 @@ function parseSimpleMarkdown(text: string): string {
     /```(\w*)\n?([\s\S]*?)```/g,
     (_m, _lang, code) => {
       codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
-      return ` CODE${codeBlocks.length - 1} `;
+      return `\u0000CODE${codeBlocks.length - 1}\u0000`;
     }
   );
 
   const inlineCodes: string[] = [];
   src = src.replace(/`([^`]+)`/g, (_m, code) => {
     inlineCodes.push(`<code>${escapeHtml(code)}</code>`);
-    return ` ICODE${inlineCodes.length - 1} `;
+    return `\u0000ICODE${inlineCodes.length - 1}\u0000`;
   });
 
   src = escapeHtml(src);
@@ -830,7 +830,7 @@ function parseSimpleMarkdown(text: string): string {
     } else if (line.trim() === "") {
       closeList();
       out.push("");
-    } else if (/^ CODE\d+ $/.test(line)) {
+    } else if (/^\u0000CODE\d+\u0000$/.test(line)) {
       // A fenced code-block placeholder on its own line; leave it untouched.
       closeList();
       out.push(line);
@@ -842,8 +842,8 @@ function parseSimpleMarkdown(text: string): string {
   closeList();
 
   let html = out.join("\n");
-  html = html.replace(/ ICODE(\d+) /g, (_m, i) => inlineCodes[+i]);
-  html = html.replace(/ CODE(\d+) /g, (_m, i) => codeBlocks[+i]);
+  html = html.replace(/\u0000ICODE(\d+)\u0000/g, (_m, i) => inlineCodes[+i]);
+  html = html.replace(/\u0000CODE(\d+)\u0000/g, (_m, i) => codeBlocks[+i]);
   return html;
 }
 
