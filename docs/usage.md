@@ -142,7 +142,7 @@ The widget derives the callback URL from the current page's directory — `<orig
 
 1. The user picks a provider; the widget opens a popup to `<baseUrl>/api/login/<system>?return_to=<callback-url>`.
 2. The user authenticates with the identity provider.
-3. The provider redirects the popup back to your `soliplex-auth-callback.html` with the tokens on the query string (`?token=…&refresh_token=…&expires_in=…`).
+3. The provider redirects the popup back to your `soliplex-auth-callback.html` with the tokens in the URL fragment (`#?token=…&refresh_token=…&expires_in=…`). The callback page also accepts them on the query string (`?token=…`), as sent by Soliplex servers before [soliplex#1415](https://github.com/soliplex/soliplex/pull/1415).
 4. The callback page posts the tokens to the widget with `postMessage`. The widget verifies the message origin (it must match the page origin or the Soliplex `baseUrl`) and then closes the popup.
 5. Tokens are stored in `localStorage` under `soliplex-auth` and automatically attached as an `Authorization: Bearer …` header on every backend request. The session is restored on reload until the token expires; use the header's logout button to clear it.
 

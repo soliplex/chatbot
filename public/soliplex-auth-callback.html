@@ -187,9 +187,18 @@
         }
       }
 
-      // Parse tokens from URL query parameters
+      // Soliplex returns the callback parameters in the URL fragment after a
+      // '?' (#?token=...); servers before soliplex#1415 used the query string.
+      function callbackParams() {
+        const hash = window.location.hash;
+        const q = hash.indexOf('?');
+        if (q !== -1) return new URLSearchParams(hash.slice(q + 1));
+        return new URLSearchParams(window.location.search);
+      }
+
+      // Parse tokens from the callback parameters
       function parseTokens() {
-        const params = new URLSearchParams(window.location.search);
+        const params = callbackParams();
         const token = params.get('token');
 
         if (!token) {
@@ -201,12 +210,13 @@
           refreshToken: params.get('refresh_token') || undefined,
           expiresIn: params.get('expires_in') ? parseInt(params.get('expires_in'), 10) : undefined,
           refreshExpiresIn: params.get('refresh_expires_in') ? parseInt(params.get('refresh_expires_in'), 10) : undefined,
+          idToken: params.get('id_token') || undefined,
         };
       }
 
       // Check for error in URL
       function parseError() {
-        const params = new URLSearchParams(window.location.search);
+        const params = callbackParams();
         return params.get('error') || params.get('error_description');
       }
 

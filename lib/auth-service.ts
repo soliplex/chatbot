@@ -14,6 +14,7 @@ export interface AuthTokens {
   refreshToken?: string;
   expiresIn?: number;
   refreshExpiresIn?: number;
+  idToken?: string;
 }
 
 export interface UserInfo {
@@ -267,28 +268,23 @@ export class AuthService {
    * Call this on page load to check for tokens in URL
    */
   handleRedirectCallback(): AuthTokens | null {
-    const params = new URLSearchParams(window.location.search);
-
-    const token = params.get("token");
-    if (!token) {
+    const url = new URL(window.location.href);
+    const tokens = tokensFromParams(getCallbackParams(url));
+    if (!tokens) {
       return null;
     }
-
-    const tokens: AuthTokens = {
-      accessToken: token,
-      refreshToken: params.get("refresh_token") || undefined,
-      expiresIn: params.get("expires_in") ? parseInt(params.get("expires_in")!, 10) : undefined,
-      refreshExpiresIn: params.get("refresh_expires_in") ? parseInt(params.get("refresh_expires_in")!, 10) : undefined,
-    };
 
     this.setTokens(tokens);
 
     // Clean up URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete("token");
-    url.searchParams.delete("refresh_token");
-    url.searchParams.delete("expires_in");
-    url.searchParams.delete("refresh_expires_in");
+    const q = url.hash.indexOf("?");
+    if (q !== -1) {
+      url.hash = url.hash.slice(1, q);
+    } else {
+      for (const key of CALLBACK_PARAMS) {
+        url.searchParams.delete(key);
+      }
+    }
     window.history.replaceState({}, "", url.toString());
 
     return tokens;
@@ -436,13 +432,23 @@ export class AuthService {
   }
 }
 
-/**
- * Parse tokens from URL (used by callback page)
- */
-export function parseTokensFromUrl(url: string = window.location.href): AuthTokens | null {
-  const urlObj = new URL(url);
-  const params = new URLSearchParams(urlObj.search);
+// Parameters Soliplex appends to `return_to` after login
+const CALLBACK_PARAMS = ["token", "refresh_token", "expires_in", "refresh_expires_in", "id_token"];
 
+/**
+ * Get the post-login callback parameters. Soliplex returns them in the URL
+ * fragment after a `?` (`#?token=…`); servers before soliplex#1415 used the
+ * query string.
+ */
+function getCallbackParams(url: URL): URLSearchParams {
+  const q = url.hash.indexOf("?");
+  if (q !== -1) {
+    return new URLSearchParams(url.hash.slice(q + 1));
+  }
+  return url.searchParams;
+}
+
+function tokensFromParams(params: URLSearchParams): AuthTokens | null {
   const token = params.get("token");
   if (!token) {
     return null;
@@ -453,7 +459,15 @@ export function parseTokensFromUrl(url: string = window.location.href): AuthToke
     refreshToken: params.get("refresh_token") || undefined,
     expiresIn: params.get("expires_in") ? parseInt(params.get("expires_in")!, 10) : undefined,
     refreshExpiresIn: params.get("refresh_expires_in") ? parseInt(params.get("refresh_expires_in")!, 10) : undefined,
+    idToken: params.get("id_token") || undefined,
   };
+}
+
+/**
+ * Parse tokens from URL (used by callback page)
+ */
+export function parseTokensFromUrl(url: string = window.location.href): AuthTokens | null {
+  return tokensFromParams(getCallbackParams(new URL(url)));
 }
 
 /**
