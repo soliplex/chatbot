@@ -45,6 +45,59 @@ interface StoredAuthState {
   tokenExpiresAt: number | null;
 }
 
+// Parameters the backend appends to 'return_to' after a successful login
+const CALLBACK_PARAM_NAMES = ["token", "refresh_token", "expires_in", "refresh_expires_in", "id_token"];
+
+/**
+ * Read the auth callback parameters from a URL.
+ * Soliplex passes them after a '?' inside the fragment ('#?token=...' or
+ * '#/route?token=...'); older backends used the query string, so both are read.
+ */
+function getCallbackParams(url: URL): URLSearchParams {
+  const params = new URLSearchParams(url.search);
+  const fragment = url.hash.slice(1);
+  const queryStart = fragment.indexOf("?");
+  if (queryStart !== -1) {
+    new URLSearchParams(fragment.slice(queryStart + 1)).forEach((value, key) => {
+      params.set(key, value);
+    });
+  }
+  return params;
+}
+
+/**
+ * Remove the auth callback parameters from both the query string and the fragment
+ */
+function stripCallbackParams(url: URL): URL {
+  const cleaned = new URL(url.toString());
+  CALLBACK_PARAM_NAMES.forEach((name) => cleaned.searchParams.delete(name));
+
+  const fragment = cleaned.hash.slice(1);
+  const queryStart = fragment.indexOf("?");
+  if (queryStart !== -1) {
+    const route = fragment.slice(0, queryStart);
+    const fragmentParams = new URLSearchParams(fragment.slice(queryStart + 1));
+    CALLBACK_PARAM_NAMES.forEach((name) => fragmentParams.delete(name));
+    const rest = fragmentParams.toString();
+    cleaned.hash = rest ? `${route}?${rest}` : route;
+  }
+  return cleaned;
+}
+
+function tokensFromParams(params: URLSearchParams): AuthTokens | null {
+  const token = params.get("token");
+  if (!token) {
+    return null;
+  }
+
+  return {
+    accessToken: token,
+    refreshToken: params.get("refresh_token") || undefined,
+    expiresIn: params.get("expires_in") ? parseInt(params.get("expires_in")!, 10) : undefined,
+    refreshExpiresIn: params.get("refresh_expires_in") ? parseInt(params.get("refresh_expires_in")!, 10) : undefined,
+  };
+}
+
 export class AuthService {
   private baseUrl: string;
   private tokens: AuthTokens | null = null;
@@ -267,29 +320,16 @@ export class AuthService {
    * Call this on page load to check for tokens in URL
    */
   handleRedirectCallback(): AuthTokens | null {
-    const params = new URLSearchParams(window.location.search);
-
-    const token = params.get("token");
-    if (!token) {
+    const url = new URL(window.location.href);
+    const tokens = tokensFromParams(getCallbackParams(url));
+    if (!tokens) {
       return null;
     }
 
-    const tokens: AuthTokens = {
-      accessToken: token,
-      refreshToken: params.get("refresh_token") || undefined,
-      expiresIn: params.get("expires_in") ? parseInt(params.get("expires_in")!, 10) : undefined,
-      refreshExpiresIn: params.get("refresh_expires_in") ? parseInt(params.get("refresh_expires_in")!, 10) : undefined,
-    };
-
     this.setTokens(tokens);
 
-    // Clean up URL
-    const url = new URL(window.location.href);
-    url.searchParams.delete("token");
-    url.searchParams.delete("refresh_token");
-    url.searchParams.delete("expires_in");
-    url.searchParams.delete("refresh_expires_in");
-    window.history.replaceState({}, "", url.toString());
+    // Clean up URL so the tokens don't linger in the address bar or history
+    window.history.replaceState({}, "", stripCallbackParams(url).toString());
 
     return tokens;
   }
@@ -440,20 +480,7 @@ export class AuthService {
  * Parse tokens from URL (used by callback page)
  */
 export function parseTokensFromUrl(url: string = window.location.href): AuthTokens | null {
-  const urlObj = new URL(url);
-  const params = new URLSearchParams(urlObj.search);
-
-  const token = params.get("token");
-  if (!token) {
-    return null;
-  }
-
-  return {
-    accessToken: token,
-    refreshToken: params.get("refresh_token") || undefined,
-    expiresIn: params.get("expires_in") ? parseInt(params.get("expires_in")!, 10) : undefined,
-    refreshExpiresIn: params.get("refresh_expires_in") ? parseInt(params.get("refresh_expires_in")!, 10) : undefined,
-  };
+  return tokensFromParams(getCallbackParams(new URL(url)));
 }
 
 /**
