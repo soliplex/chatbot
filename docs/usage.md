@@ -38,7 +38,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `bubbleColor` | string | Soliplex primary | CSS color for the launcher bubble and primary buttons; the icon/label color on top of it is picked automatically for contrast |
 | `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
-| `placeholder` | string | - | Placeholder text for empty chat (overrides room's welcome message) |
+| `placeholder` | string | `"Ask me anything..."` | Message shown in an empty chat. Overrides the room's welcome message, which is used when this is unset |
 | `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
 | `debug` | boolean | `false` | Render raw client-side tool-call results as JSON in the chat |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
