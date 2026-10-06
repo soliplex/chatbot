@@ -54,7 +54,7 @@ The widget will:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
-| `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room |
+| `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room (takes precedence over `roomIds`) |
 | `roomIds` | string[] | `undefined` | Optional list of room IDs to show (filters the available rooms) |
 | `title` | string | `"Chat with us"` | Chat header title |
 | `placeholder` | string | `"Ask me anything..."` | Empty state message; overrides the room's welcome message |

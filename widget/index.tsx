@@ -17,8 +17,6 @@ interface ExternalToolConfig {
 interface WidgetInitConfig extends ChatWidgetConfig {
   tools?: ExternalToolConfig[];
   containerId?: string;
-  // Legacy support: if roomId is provided, convert to roomIds array
-  roomId?: string;
 }
 
 // Global namespace for the widget
@@ -127,16 +125,11 @@ function init(config: WidgetInitConfig) {
   // Resolve tool handlers
   const tools = config.tools ? resolveToolHandlers(config.tools) : [];
 
-  // Handle legacy roomId -> roomIds conversion
-  let roomIds = config.roomIds;
-  if (!roomIds && config.roomId) {
-    roomIds = [config.roomId];
-  }
-
   // Extract widget config
   const widgetConfig: ChatWidgetConfig = {
     baseUrl: config.baseUrl, // May be undefined - widget will show server URL prompt
-    roomIds: roomIds,
+    roomId: config.roomId, // Opens this room directly, skipping the room list
+    roomIds: config.roomIds,
     autoHideSeconds: config.autoHideSeconds,
     position: config.position,
     bubbleColor: config.bubbleColor,

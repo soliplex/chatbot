@@ -32,6 +32,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
+| `roomId` | string | `undefined` | Go directly to this room, skipping the room selector. Takes precedence over `roomIds` |
 | `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
@@ -44,7 +45,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
 
-> **Note:** The `roomId` option is still supported for backwards compatibility and will be converted to `roomIds: [roomId]`.
+> **Note:** `roomId` loads that one room directly (`/api/v1/rooms/{roomId}`), so it works even for a room the server's room list doesn't include. If both are set, `roomId` wins and `roomIds` is ignored.
 
 ### Example with All Options
 
