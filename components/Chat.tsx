@@ -327,6 +327,8 @@ function Chat({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // The input stays editable while a reply streams, so the next message can
+    // be drafted; only sending waits, and the draft is kept until then.
     if (!input.trim() || isLoading) return;
     sendMessage(input.trim());
     setInput("");
@@ -394,7 +396,6 @@ function Chat({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
-            disabled={isLoading}
             rows={1}
             className="soliplex-input"
             aria-label="Message input"
@@ -403,8 +404,8 @@ function Chat({
             type="submit"
             disabled={isLoading || !input.trim()}
             className="soliplex-send-btn"
-            title="Send message"
-            aria-label="Send message"
+            title={isLoading ? "Waiting for the reply to finish" : "Send message"}
+            aria-label={isLoading ? "Waiting for the reply to finish" : "Send message"}
             aria-busy={isLoading}
           >
             {isLoading ? <Spinner /> : <Icons.Send />}

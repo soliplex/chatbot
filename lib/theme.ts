@@ -687,7 +687,6 @@ const STYLES = `
 
     .soliplex-input:focus-visible { outline: none; }
     .soliplex-input::placeholder { color: var(--sp-hint-text); }
-    .soliplex-input:disabled { color: var(--sp-muted-foreground); }
 
     .soliplex-send-btn {
       display: flex;
