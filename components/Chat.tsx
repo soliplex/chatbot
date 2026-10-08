@@ -978,9 +978,13 @@ function Chat({
             }}
           />
         ) : (
-          messages.map((msg) => (
-            <Message key={msg.id} message={msg} />
-          ))
+          messages
+            // Skip assistant messages that never received any text (empty
+            // TEXT_MESSAGE_START/END pairs, possibly from saved history).
+            .filter((msg) => msg.role !== "assistant" || msg.content)
+            .map((msg) => (
+              <Message key={msg.id} message={msg} />
+            ))
         )}
 
         {isLoading && <TypingIndicator />}
