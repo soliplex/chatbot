@@ -18,7 +18,7 @@ An embeddable React chat widget (`SoliplexChat`) that talks to a Soliplex/Pydant
 | `lib/theme.ts` | **All of the widget's CSS**: the Soliplex design tokens (`--sp-*`) and the component styles, injected once by `injectStyles()` |
 | `lib/agui-client.ts` | AG-UI client (`/api/v1/rooms/{room}/agui[/{thread}[/{run}]]`) |
 | `public/` | GitHub Pages root: demo `index.html`, `soliplex-auth-callback.html`, `plone_soliplex_tool.js`. The built bundle lands here but is git-ignored |
-| `docs/` | User docs, example pages (they load the bundle from the GitHub Pages deploy), and a **copy** of `plone_soliplex_tool.js` |
+| `docs/` | User docs and example pages. The examples load the bundle and `plone_soliplex_tool.js` from the GitHub Pages deploy |
 | `esbuild.config.mjs` | Widget build. Resolves the `@/` alias, has a watch mode and a polling+SSE live-reload mode (`ESBUILD_POLL=1`) for Docker |
 | `Dockerfile`, `nginx-widget.conf` | Dev container that runs the watch build, and the nginx config that serves the widget and proxies the backend |
 
@@ -36,7 +36,7 @@ There is no test suite and no ESLint config (`npm run lint` prompts to set one u
 
 ## Conventions and gotchas
 
-- **The built bundle is not committed.** `public/soliplex-chat.js(.map)` and the old `docs/` copies are git-ignored. CI builds the bundle: the Pages deploy publishes it at `https://soliplex.github.io/chatbot/soliplex-chat.js` on every push to `main` that touches the sources, and the release workflow attaches it to the GitHub release. Example pages under `docs/` load it from that Pages URL. Run `npm run build:widget` locally to test, but never `git add` the output. If you edit `plone_soliplex_tool.js`, keep the `public/` and `docs/` copies in sync.
+- **The built bundle is not committed.** `public/soliplex-chat.js(.map)` and the old `docs/` copies are git-ignored. CI builds the bundle: the Pages deploy publishes it at `https://soliplex.github.io/chatbot/soliplex-chat.js` on every push to `main` that touches the sources, and the release workflow attaches it to the GitHub release. Example pages under `docs/` load it from that Pages URL. Run `npm run build:widget` locally to test, but never `git add` the output. `plone_soliplex_tool.js` lives only in `public/` and is published the same way.
 - **Tailwind does not reach the bundle.** The widget renders inside arbitrary host pages, and its styles come from the stylesheet in `lib/theme.ts`. If you use a class in a component that isn't defined there, add a rule for it, or the widget will be unstyled when embedded.
 - **Styling uses the Soliplex design tokens.** Colors, spacing, radii and type sizes are the `--sp-*` custom properties, copied from `design_system/tokens.css` in `soliplex_frontend`; don't hard-code values the design system lacks. Every rule is scoped under `.soliplex-root` so nothing leaks into the host page, and element resets use `:where()` so host element rules can't restyle the widget while component classes still win over the resets.
 - **Adding a config option** means touching the `ChatWidgetConfig` interface in `components/ChatWidget.tsx`, copying the option explicitly into `widgetConfig` in `widget/index.tsx`, and adding it to the options table in `README.md` and `docs/usage.md`.
