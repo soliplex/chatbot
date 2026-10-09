@@ -54,11 +54,11 @@ The widget will:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
-| `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room |
+| `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room (takes precedence over `roomIds`) |
 | `roomIds` | string[] | `undefined` | Optional list of room IDs to show (filters the available rooms) |
 | `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible to the user, tried in order; the first accessible one wins. Ignored without `roomIds` |
 | `title` | string | `"Chat with us"` | Chat header title |
-| `placeholder` | string | `"Ask me anything..."` | Empty state message |
+| `placeholder` | string | `"Ask me anything..."` | Empty state message; overrides the room's welcome message |
 | `bubbleColor` | string | Soliplex primary | Accent for the launcher bubble and primary buttons; the icon/label color is picked automatically for contrast |
 | `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |

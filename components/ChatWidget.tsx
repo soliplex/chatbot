@@ -23,7 +23,7 @@ export interface ChatWidgetConfig {
   bubbleColor?: string; // Accent for the launcher and primary buttons; defaults to the Soliplex primary
   theme?: ThemeMode; // "light", "dark", or "auto" (follow the OS, default)
   title?: string;
-  placeholder?: string;
+  placeholder?: string; // Empty-state message; overrides the room's welcome message
   debug?: boolean; // If true, show raw tool-call results as JSON in the chat
   persist?: boolean; // Resume the conversation across reloads (default true)
 }
@@ -741,7 +741,9 @@ function ChatEmbed({
       roomId={room.id}
       externalTools={tools}
       showHeader={false}
-      placeholder={placeholder || room.welcome_message}
+      // The configured message wins, then the room's own welcome message;
+      // with neither, Chat falls back to its default.
+      placeholder={placeholder || room.welcome_message || undefined}
       roomDescription={room.description}
       suggestions={room.suggestions}
       getAccessToken={getAccessToken}

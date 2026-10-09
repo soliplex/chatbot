@@ -242,6 +242,7 @@ interface ChatProps {
   roomId: string;
   externalTools?: ToolDefinition[];
   showHeader?: boolean;
+  /** Message shown while the conversation is empty. */
   placeholder?: string;
   title?: string;
   roomDescription?: string;
@@ -270,7 +271,7 @@ function Chat({
   roomId,
   externalTools = [],
   showHeader = true,
-  placeholder = 'Ask me anything or try "What time is it?"',
+  placeholder = "Ask me anything...",
   title = "AI Assistant",
   roomDescription,
   suggestions = [],
@@ -327,6 +328,8 @@ function Chat({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    // The input stays editable while a reply streams, so the next message can
+    // be drafted; only sending waits, and the draft is kept until then.
     if (!input.trim() || isLoading) return;
     sendMessage(input.trim());
     setInput("");
@@ -366,6 +369,7 @@ function Chat({
       <div className="soliplex-chat-messages" aria-live="polite">
         {messages.length === 0 ? (
           <EmptyState
+            message={placeholder}
             roomDescription={roomDescription}
             suggestions={suggestions}
             onSuggestionClick={(suggestion) => {
@@ -398,7 +402,6 @@ function Chat({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Type your message..."
-            disabled={isLoading}
             rows={1}
             className="soliplex-input"
             aria-label="Message input"
@@ -407,8 +410,8 @@ function Chat({
             type="submit"
             disabled={isLoading || !input.trim()}
             className="soliplex-send-btn"
-            title="Send message"
-            aria-label="Send message"
+            title={isLoading ? "Waiting for the reply to finish" : "Send message"}
+            aria-label={isLoading ? "Waiting for the reply to finish" : "Send message"}
             aria-busy={isLoading}
           >
             {isLoading ? <Spinner /> : <Icons.Send />}
@@ -422,10 +425,12 @@ function Chat({
 
 // Empty state component
 const EmptyState = memo(function EmptyState({
+  message,
   roomDescription,
   suggestions,
   onSuggestionClick,
 }: {
+  message: string;
   roomDescription?: string;
   suggestions?: string[];
   onSuggestionClick?: (suggestion: string) => void;
@@ -435,7 +440,7 @@ const EmptyState = memo(function EmptyState({
       <div className="sp-screen-icon">
         <Icons.Chat />
       </div>
-      <p className="soliplex-chat-empty-title">Start a conversation</p>
+      <p className="soliplex-chat-empty-title">{message}</p>
       {roomDescription && (
         <p className="soliplex-chat-empty-description">{roomDescription}</p>
       )}

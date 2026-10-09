@@ -32,6 +32,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
+| `roomId` | string | `undefined` | Go directly to this room, skipping the room selector. Takes precedence over `roomIds` |
 | `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
 | `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible, tried in order; the first accessible one wins. Ignored when `roomIds` is empty |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
@@ -39,13 +40,13 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `bubbleColor` | string | Soliplex primary | CSS color for the launcher bubble and primary buttons; the icon/label color on top of it is picked automatically for contrast |
 | `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
-| `placeholder` | string | - | Placeholder text for empty chat (overrides room's welcome message) |
+| `placeholder` | string | `"Ask me anything..."` | Message shown in an empty chat. Overrides the room's welcome message, which is used when this is unset |
 | `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
 | `debug` | boolean | `false` | Render raw client-side tool-call results as JSON in the chat |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
 
-> **Note:** The `roomId` option is still supported for backwards compatibility and will be converted to `roomIds: [roomId]`.
+> **Note:** `roomId` is shorthand for `roomIds: [roomId]`. If both are set, `roomId` wins and `roomIds` is ignored (with a console warning). The room is still resolved from the server's room list, so if the user cannot access it the widget falls back to `fallbackRoomIds`, or shows "No rooms available".
 
 ### Example with All Options
 
