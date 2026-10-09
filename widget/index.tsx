@@ -170,6 +170,7 @@ function init(config: WidgetInitConfig) {
     theme: config.theme,
     title: config.title,
     placeholder: config.placeholder,
+    noRoomsMessage: config.noRoomsMessage,
     debug: config.debug,
     persist: config.persist,
   };
