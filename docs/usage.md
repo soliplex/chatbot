@@ -46,7 +46,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
 
-> **Note:** `roomId` loads that one room directly (`/api/v1/rooms/{roomId}`), so it works even for a room the server's room list doesn't include. If both are set, `roomId` wins and `roomIds` is ignored.
+> **Note:** `roomId` is shorthand for `roomIds: [roomId]`. If both are set, `roomId` wins and `roomIds` is ignored (with a console warning). The room is still resolved from the server's room list, so if the user cannot access it the widget falls back to `fallbackRoomIds`, or shows "No rooms available".
 
 ### Example with All Options
 

@@ -127,9 +127,14 @@ function init(config: WidgetInitConfig) {
   // Resolve tool handlers
   const tools = config.tools ? resolveToolHandlers(config.tools) : [];
 
-  // Handle legacy roomId -> roomIds conversion
+  // roomId is shorthand for roomIds: [roomId] and wins when both are set,
+  // as documented. The room still comes from the room list, so an
+  // inaccessible room falls through to fallbackRoomIds like any other.
   let roomIds = config.roomIds;
-  if (!roomIds && config.roomId) {
+  if (config.roomId) {
+    if (roomIds && roomIds.length > 0) {
+      console.warn("SoliplexChat: roomIds ignored because roomId is set");
+    }
     roomIds = [config.roomId];
   }
 
