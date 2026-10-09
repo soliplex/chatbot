@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Soliplex Chat Widget - Plone Integration Example</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+      line-height: 1.6;
+    }
+    h1 { color: #1e40af; }
+    code { background: #f3f4f6; padding: 0.2em 0.4em; border-radius: 0.25rem; font-size: 0.9em; }
+    pre { background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+    pre code { background: none; padding: 0; }
+  </style>
+</head>
+<body>
+  <h1>Soliplex Chat Widget &mdash; Plone Integration</h1>
+
+  <p>
+    This example embeds the Soliplex chat widget on a Plone page and wires up the
+    Plone client-side tools from <code>plone_soliplex_tool.js</code>. With these
+    tools the agent can identify the logged-in user, search the site, and answer
+    questions like <em>&ldquo;What are the most recent changes in my folder?&rdquo;</em>
+  </p>
+
+  <h2>Wiring</h2>
+  <pre><code>&lt;!-- 1. Load the widget bundle and the Plone tools --&gt;
+&lt;script src="soliplex-chat.js"&gt;&lt;/script&gt;
+&lt;script src="plone_soliplex_tool.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+  // 2. (Optional) point the Plone client at your site root and tune behaviour.
+  //    When omitted, the site root is auto-detected and same-origin cookies /
+  //    a Volto "auth_token" JWT are used for authentication.
+  PloneSoliplex.configure({
+    // baseUrl: "https://plone.example.com",
+    // memberFolderBase: "/Members",   // where per-user folders live
+    // userId: "bob",                  // force a user id if auto-detect fails
+  });
+
+  // 3. Initialize the widget with the Plone tool definitions.
+  SoliplexChat.init({
+    baseUrl: "https://soliplex.example.com",
+    roomId: "assistant",
+    title: "Plone Assistant",
+    tools: PloneSoliplex.getToolDefinitions(),
+  });
+&lt;/script&gt;</code></pre>
+
+  <h2>Tools provided</h2>
+  <ul>
+    <li><code>plone_get_current_user</code> &mdash; id, full name, email and roles of the logged-in user.</li>
+    <li><code>plone_recent_changes_in_my_folder</code> &mdash; most recently modified items in the user's folder (falls back to authored content).</li>
+    <li><code>plone_search</code> &mdash; catalog search (<code>@search</code>) with type/path/creator/state filters.</li>
+    <li><code>plone_list_folder_contents</code> &mdash; list the immediate children of a folder.</li>
+    <li><code>plone_get_content</code> &mdash; fetch a single content item by path.</li>
+  </ul>
+
+  <h2>Combining with your own tools</h2>
+  <pre><code>SoliplexChat.init({
+  baseUrl: "https://soliplex.example.com",
+  roomId: "assistant",
+  tools: [
+    ...PloneSoliplex.getToolDefinitions(),
+    {
+      name: "get_page_info",
+      description: "Get information about the current page",
+      parameters: { type: "object", properties: {} },
+      handler: async () =&gt; ({ title: document.title, url: location.href }),
+    },
+  ],
+});</code></pre>
+
+  <!-- Live wiring (points at placeholder servers; replace with your own) -->
+  <script src="./soliplex-chat.js"></script>
+  <script src="./plone_soliplex_tool.js"></script>
+  <script>
+    // Same-origin Plone assumed by default. Configure as needed:
+    // PloneSoliplex.configure({ baseUrl: window.location.origin });
+
+    SoliplexChat.init({
+      // baseUrl omitted -> the widget prompts for the Soliplex server URL
+      title: "Plone Assistant",
+      tools: PloneSoliplex.getToolDefinitions(),
+    });
+  </script>
+</body>
+</html>

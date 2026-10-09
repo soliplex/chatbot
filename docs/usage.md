@@ -33,11 +33,14 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 |--------|------|---------|-------------|
 | `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
 | `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
+| `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible, tried in order; the first accessible one wins. Ignored when `roomIds` is empty |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
 | `bubbleColor` | string | `"#2563eb"` | CSS color for the chat bubble |
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
 | `placeholder` | string | - | Placeholder text for empty chat (overrides room's welcome message) |
+| `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
+| `debug` | boolean | `false` | Render raw client-side tool-call results as JSON in the chat |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
 
@@ -68,6 +71,25 @@ The widget fetches available rooms from `GET /api/v1/rooms` when opened:
 - **`roomIds` with multiple IDs**: Shows only those rooms, user picks one
 - **`roomIds` with single ID**: Auto-selects that room, skips room selection
 - **`roomIds` with IDs not in backend**: Those rooms are filtered out
+
+#### Fallback rooms
+
+If the logged-in user can't access any of the configured `roomIds` (for example, the room is private to another group), the widget would otherwise show "No rooms available". Set `fallbackRoomIds` to name one or more rooms to use instead:
+
+```javascript
+SoliplexChat.init({
+  baseUrl: "https://api.example.com",
+  roomIds: ["search"],
+  fallbackRoomIds: ["search-lite", "chat"],  // or a single room: ["chat"]
+});
+```
+
+- The configured `roomIds` always win: fallbacks are only consulted when none of them is accessible.
+- Fallbacks are tried in order. The widget opens the first one the user can access, as a single room with no room picker or back button.
+- If no fallback is accessible either, "No rooms available" is shown.
+- Accessibility is taken from the room list the backend returns for the current user, so no extra requests are made.
+- The fallback is resolved again every time the room list is loaded. A user who was sent to a fallback room returns to the configured room as soon as they can access it again; the remembered fallback room doesn't override it.
+- With `debug: true`, the widget logs which fallback room it chose to the browser console.
 
 Once a room is selected, the header shows the room's name and a back button (if multiple rooms are available) to return to room selection.
 
@@ -113,6 +135,42 @@ SoliplexChat.init({
 ```
 
 The bubble will reappear when the user moves their mouse near the corner where it was positioned.
+
+## Authentication
+
+Some Soliplex servers require the user to sign in before they can chat. When the backend has one or more authentication systems configured (returned from `<baseUrl>/api/login`), the widget automatically shows a login screen listing the available providers and runs an OpenID Connect (OIDC) sign-in in a **popup window**.
+
+You don't need to write any code to enable this — but you **do** need to host the callback page described below.
+
+### Hosting the callback page
+
+After the identity provider authenticates the user, it redirects the popup to a small landing page that hands the tokens back to the widget. That page ships with the widget as **`soliplex-auth-callback.html`**, and you must serve it **on the same origin and in the same directory as the page that embeds the widget** (right next to `soliplex-chat.js`):
+
+```
+your-site/
+├── index.html                    <- embeds the widget
+├── soliplex-chat.js
+└── soliplex-auth-callback.html   <- required for login
+```
+
+The widget derives the callback URL from the current page's directory — `<origin><current-directory>/soliplex-auth-callback.html` — so keep the file name unchanged and make sure it sits alongside your page. If it is missing, the popup shows a 404 and login fails.
+
+> If you don't already have `soliplex-auth-callback.html`, copy it from the widget distribution (it lives next to `soliplex-chat.js`).
+
+### How the flow works
+
+1. The user picks a provider; the widget opens a popup to `<baseUrl>/api/login/<system>?return_to=<callback-url>`.
+2. The user authenticates with the identity provider.
+3. The provider redirects the popup back to your `soliplex-auth-callback.html` with the tokens on the query string (`?token=…&refresh_token=…&expires_in=…`).
+4. The callback page posts the tokens to the widget with `postMessage`. The widget verifies the message origin (it must match the page origin or the Soliplex `baseUrl`) and then closes the popup.
+5. Tokens are stored in `localStorage` under `soliplex-auth` and automatically attached as an `Authorization: Bearer …` header on every backend request. The session is restored on reload until the token expires; use the header's logout button to clear it.
+
+### Requirements & troubleshooting
+
+- **Serve the page over HTTPS from a stable origin.** The callback URL is sent to the backend as `return_to`, so it must be an allowed redirect target in your Soliplex / identity-provider configuration.
+- **Allow popups.** If the browser blocks the popup, the widget reports *"Failed to open authentication popup. Please allow popups for this site."* Retry after allowing them.
+- **404 / "No authentication tokens received":** the callback file is missing or not in the same directory as your page — copy `soliplex-auth-callback.html` next to it.
+- **Nothing happens after signing in:** the popup's origin doesn't match the page origin or the configured `baseUrl`. Make sure both your page and the callback page are served from the same origin.
 
 ## Client-Side Tools
 
@@ -567,6 +625,94 @@ Tools to help users navigate your site:
 ## Built-in Tools
 
 The widget includes a built-in `get_current_time` tool that returns the current time in the user's local timezone. This is automatically available without any configuration.
+
+## Plone Integration
+
+A ready-made set of Plone tools ships as a companion script, `plone_soliplex_tool.js`, served alongside the widget bundle. It exposes a small [plone.restapi](https://plonerestapi.readthedocs.io/) client on `window.PloneSoliplex` and a set of tool definitions the agent can use to work with the logged-in user's content.
+
+> **Adding this to an actual Plone site?** See the step-by-step [Plone integration guide](plone-integration.md) for how to serve and load `plone_soliplex_tool.js` on Plone 6 (Classic UI and Volto). The section below is a quick reference for the API it exposes.
+
+### Quick Start
+
+```html
+<script src="soliplex-chat.js"></script>
+<script src="plone_soliplex_tool.js"></script>
+<script>
+  SoliplexChat.init({
+    baseUrl: "https://soliplex.example.com",
+    roomId: "assistant",
+    tools: PloneSoliplex.getToolDefinitions(),
+  });
+</script>
+```
+
+Once wired up, users can ask questions such as **"What are the most recent changes in my folder?"** — the agent calls `plone_get_current_user` to identify the user, then `plone_recent_changes_in_my_folder` to list the most recently modified content.
+
+### Provided Tools
+
+| Tool | Description |
+|------|-------------|
+| `plone_get_current_user` | Id, full name, email and roles of the logged-in user |
+| `plone_recent_changes_in_my_folder` | Most recently modified items in the user's personal folder (falls back to content the user authored anywhere on the site) |
+| `plone_search` | Catalog search (`@search`) with text / type / path / creator / workflow-state filters |
+| `plone_list_folder_contents` | List the immediate children of a folder |
+| `plone_get_content` | Fetch a single content item by path |
+
+Tools that take a `path` accept the `path` or `url` value from a previous result (or a site-relative path); the client normalizes it, so paths that already include the site id (e.g. `/Plone/...`) are not duplicated.
+
+### Authentication
+
+The tools authenticate the same way the browser already does, so no extra setup is needed on a same-origin Plone site:
+
+1. If a Plone/Volto JWT is present in `localStorage` (Volto's default key is `auth_token`), it is sent as a `Bearer` token.
+2. Otherwise, same-origin session cookies are sent (`credentials: "include"`), which covers Plone Classic logins.
+3. As a last resort, the Soliplex widget's own OIDC token is reused (useful when Plone and Soliplex share an identity provider).
+
+The current user id is read from the JWT `sub` / `preferred_username` claim. The server still enforces authorization on every request — the token is only used as a client-side identity hint.
+
+**Cookie-only sessions (Plone Classic):** when there is no JWT, the user id cannot be derived on the client (the `__ac` cookie is `HttpOnly` and opaque). As a final fallback, the client asks the server via the `@logged-in-user` endpoint (configurable with `loggedInUserEndpoint`), which returns `{ userid, fullname, email }` for the authenticated session. If that endpoint is not installed it responds with `404` and the client simply reports the user as unknown. You can also supply the id yourself from a template with `PloneSoliplex.configure({ userId })`.
+
+### Configuration
+
+Call `PloneSoliplex.configure(...)` before `SoliplexChat.init(...)` to override defaults:
+
+```javascript
+PloneSoliplex.configure({
+  baseUrl: "https://plone.example.com", // site root; auto-detected when omitted
+  memberFolderBase: "/Members",         // where per-user folders live
+  userId: "bob",                        // force a user id if auto-detection fails
+  getUserId: () => window.myApp.currentUser, // or provide a resolver (may be async)
+  allowWrites: false,                   // keep the REST client read-only (default)
+  defaultLimit: 10,                     // default number of search results
+});
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `baseUrl` | auto-detected | Plone site root that plone.restapi is served from |
+| `token` | `null` | Explicit Bearer token (skips localStorage lookup) |
+| `tokenKey` | `"auth_token"` | localStorage key holding the Plone/Volto JWT |
+| `useSoliplexToken` | `true` | Fall back to the Soliplex widget's OIDC token |
+| `userId` | `null` | Force a specific user id |
+| `getUserId` | `null` | Callback returning the user id (may be async) |
+| `memberFolderBase` | `"/Members"` | Base path for per-user folders |
+| `allowWrites` | `false` | Allow non-GET REST requests |
+| `defaultLimit` | `10` | Default number of search results |
+| `loggedInUserEndpoint` | `"@logged-in-user"` | Server endpoint for resolving the user from a cookie session (set to `null` to disable) |
+
+### Using the client directly
+
+Every helper is also available programmatically on `window.PloneSoliplex`:
+
+```javascript
+await PloneSoliplex.getCurrentUser();
+await PloneSoliplex.getRecentChangesInMyFolder({ limit: 5 });
+await PloneSoliplex.search({ text: "budget", portal_type: "File" });
+await PloneSoliplex.listFolderContents("/news", { limit: 20 });
+await PloneSoliplex.getContent("/news/my-item");
+```
+
+See [plone-example.html](plone-example.html) for a complete embed example.
 
 ## Troubleshooting
 

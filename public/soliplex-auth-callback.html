@@ -187,9 +187,24 @@
         }
       }
 
-      // Parse tokens from URL query parameters
-      function parseTokens() {
+      // Soliplex passes the callback parameters after a '?' inside the
+      // fragment ('#?token=...'); older backends used the query string,
+      // so read both, the fragment taking precedence.
+      function getParams() {
         const params = new URLSearchParams(window.location.search);
+        const fragment = window.location.hash.slice(1);
+        const queryStart = fragment.indexOf('?');
+        if (queryStart !== -1) {
+          new URLSearchParams(fragment.slice(queryStart + 1)).forEach(function(value, key) {
+            params.set(key, value);
+          });
+        }
+        return params;
+      }
+
+      // Parse tokens from the URL
+      function parseTokens() {
+        const params = getParams();
         const token = params.get('token');
 
         if (!token) {
@@ -206,7 +221,7 @@
 
       // Check for error in URL
       function parseError() {
-        const params = new URLSearchParams(window.location.search);
+        const params = getParams();
         return params.get('error') || params.get('error_description');
       }
 

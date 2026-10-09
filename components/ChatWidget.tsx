@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from "react";
+import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
 import Chat from "./Chat";
 import { useAuth, type AuthSystem } from "@/hooks/useAuth";
 
@@ -15,13 +15,15 @@ export interface Room {
 
 export interface ChatWidgetConfig {
   baseUrl?: string; // If not set, shows a prompt to enter the server URL
-  roomId?: string; // Single room ID - if set, skip room selection and go directly to this room
   roomIds?: string[]; // Optional list of room IDs to show; if empty/undefined, show all
+  fallbackRoomIds?: string[]; // Tried in order when none of roomIds is accessible; first accessible wins
   autoHideSeconds?: number; // 0 = never hide
   position?: "bottom-right" | "bottom-left";
   bubbleColor?: string;
   title?: string;
   placeholder?: string;
+  debug?: boolean; // If true, show raw tool-call results as JSON in the chat
+  persist?: boolean; // Resume the conversation across reloads (default true)
 }
 
 export interface ChatWidgetRef {
@@ -44,7 +46,21 @@ interface ChatWidgetProps {
 
 const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
   function ChatWidget({ config, tools = [], onOpenChange }, ref) {
-    const [isOpen, setIsOpen] = useState(false);
+    // Widget open/room state is persisted (scoped per server) so a reload
+    // reopens the widget in the room the user was last using.
+    const persistWidgetState =
+      (config.persist ?? true) && typeof window !== "undefined";
+    const openKey = `soliplex-widget:${config.baseUrl ?? ""}:open`;
+    const roomKey = `soliplex-widget:${config.baseUrl ?? ""}:room`;
+
+    const [isOpen, setIsOpen] = useState<boolean>(() => {
+      if (!persistWidgetState) return false;
+      try {
+        return window.localStorage.getItem(openKey) === "1";
+      } catch {
+        return false;
+      }
+    });
     const [isVisible, setIsVisible] = useState(true);
     const [hasInteracted, setHasInteracted] = useState(false);
     const [availableRooms, setAvailableRooms] = useState<Room[]>([]);
@@ -53,14 +69,53 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
     const [roomsError, setRoomsError] = useState<string | null>(null);
     const [customBaseUrl, setCustomBaseUrl] = useState<string | null>(null);
 
+    // Populated by the embedded Chat so the header can start a new conversation.
+    const resetChatRef = useRef<(() => void) | null>(null);
+    const handleRegisterReset = useCallback((reset: () => void) => {
+      resetChatRef.current = reset;
+    }, []);
+
+    // Remember whether the widget is open across reloads.
+    useEffect(() => {
+      if (!persistWidgetState) return;
+      try {
+        window.localStorage.setItem(openKey, isOpen ? "1" : "0");
+      } catch {
+        // Best-effort.
+      }
+    }, [isOpen, persistWidgetState, openKey]);
+
+    // Remember which room is selected across reloads. Only write on select;
+    // clearing is done explicitly when the user leaves a room, so the initial
+    // null state on mount doesn't wipe the id before it can be restored.
+    useEffect(() => {
+      if (!persistWidgetState || !selectedRoom) return;
+      try {
+        window.localStorage.setItem(roomKey, selectedRoom.id);
+      } catch {
+        // Best-effort.
+      }
+    }, [selectedRoom, persistWidgetState, roomKey]);
+
+    const clearPersistedRoom = useCallback(() => {
+      if (!persistWidgetState) return;
+      try {
+        window.localStorage.removeItem(roomKey);
+      } catch {
+        // Best-effort.
+      }
+    }, [persistWidgetState, roomKey]);
+
     const {
-      roomId,
       roomIds,
+      fallbackRoomIds,
       autoHideSeconds = 0,
       position = "bottom-right",
       bubbleColor = "#2563eb",
       title = "Chat with us",
       placeholder,
+      debug = false,
+      persist = true,
     } = config;
 
     // Resolved baseUrl: from config or user-provided custom URL
@@ -85,38 +140,9 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       const authReady = authRequired === false || isAuthenticated;
 
       if (canFetchRooms && authReady) {
-        if (roomId) {
-          // Single room mode - fetch just that room
-          fetchSingleRoom(roomId);
-        } else {
-          // Multi-room mode - fetch all rooms
-          fetchRooms();
-        }
+        fetchRooms();
       }
-    }, [isOpen, authRequired, isAuthenticated, roomId]);
-
-    const fetchSingleRoom = async (id: string) => {
-      setIsLoadingRooms(true);
-      setRoomsError(null);
-      try {
-        const headers: Record<string, string> = {};
-        const token = getAccessToken();
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-        const response = await fetch(`${baseUrl}/api/v1/rooms/${id}`, { headers });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch room: ${response.status}`);
-        }
-        const roomData: Omit<Room, 'id'> = await response.json();
-        const room: Room = { ...roomData, id };
-        setSelectedRoom(room);
-      } catch (err) {
-        setRoomsError(err instanceof Error ? err.message : "Failed to load room");
-      } finally {
-        setIsLoadingRooms(false);
-      }
-    };
+    }, [isOpen, authRequired, isAuthenticated]);
 
     const fetchRooms = async () => {
       setIsLoadingRooms(true);
@@ -133,21 +159,53 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
         }
         const roomsData: Record<string, Room> = await response.json();
 
-        // Convert to array and filter if roomIds specified
-        let rooms = Object.entries(roomsData).map(([id, room]) => ({
+        // The backend only lists rooms the caller may access.
+        const allRooms: Room[] = Object.entries(roomsData).map(([id, room]) => ({
           ...room,
           id,
         }));
 
-        // Filter to only specified roomIds if provided
+        // Narrow to the configured roomIds (in that order). If none of them
+        // is accessible, use the first accessible fallback room instead.
+        let rooms = allRooms;
         if (roomIds && roomIds.length > 0) {
-          rooms = rooms.filter(room => roomIds.includes(room.id));
+          rooms = roomIds
+            .map((id) => allRooms.find((room) => room.id === id))
+            .filter((room): room is Room => room !== undefined);
+          if (rooms.length === 0 && fallbackRoomIds) {
+            const fallback = fallbackRoomIds
+              .map((id) => allRooms.find((room) => room.id === id))
+              .find((room) => room !== undefined);
+            if (fallback) {
+              rooms = [fallback];
+              if (debug) {
+                console.info(
+                  "[SoliplexChat] primary room(s) not accessible, using fallback room",
+                  fallback.id
+                );
+              }
+            }
+          }
         }
 
         setAvailableRooms(rooms);
 
-        // Auto-select if only one room
-        if (rooms.length === 1) {
+        // Restore the room the user was last in (across reloads), else
+        // auto-select when there's only one room.
+        let restoredRoomId: string | null = null;
+        if (persistWidgetState) {
+          try {
+            restoredRoomId = window.localStorage.getItem(roomKey);
+          } catch {
+            restoredRoomId = null;
+          }
+        }
+        const restoredRoom = restoredRoomId
+          ? rooms.find((room) => room.id === restoredRoomId)
+          : undefined;
+        if (restoredRoom) {
+          setSelectedRoom(restoredRoom);
+        } else if (rooms.length === 1) {
           setSelectedRoom(rooms[0]);
         }
       } catch (err) {
@@ -208,7 +266,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
 
     const handleBackToRooms = useCallback(() => {
       setSelectedRoom(null);
-    }, []);
+      clearPersistedRoom();
+    }, [clearPersistedRoom]);
 
     const handleLogout = useCallback(() => {
       logout();
@@ -216,7 +275,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       setAvailableRooms([]);
       setSelectedRoom(null);
       setRoomsError(null);
-    }, [logout]);
+      clearPersistedRoom();
+    }, [logout, clearPersistedRoom]);
 
     // Show bubble on mouse movement near edge (if hidden)
     useEffect(() => {
@@ -292,6 +352,28 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                 </span>
               </div>
               <div className="flex items-center gap-1">
+                {/* Start a new conversation - only while chatting in a room */}
+                {selectedRoom && (
+                  <button
+                    onClick={() => resetChatRef.current?.()}
+                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    aria-label="Start new conversation"
+                    title="Start new conversation"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                )}
                 {/* Logout button - only show when authenticated */}
                 {isAuthenticated && (
                   <button
@@ -378,6 +460,9 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                   tools={tools}
                   placeholder={placeholder}
                   getAccessToken={getAccessToken}
+                  debug={debug}
+                  persist={persist}
+                  onRegisterReset={handleRegisterReset}
                 />
               ) : (
                 <RoomSelector
@@ -678,6 +763,9 @@ function ChatEmbed({
   tools,
   placeholder,
   getAccessToken,
+  debug,
+  persist,
+  onRegisterReset,
 }: {
   baseUrl: string;
   room: Room;
@@ -689,54 +777,10 @@ function ChatEmbed({
   }>;
   placeholder?: string;
   getAccessToken?: () => string | null;
+  debug?: boolean;
+  persist?: boolean;
+  onRegisterReset?: (reset: () => void) => void;
 }) {
-  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-
-  // Fetch background image when room changes
-  useEffect(() => {
-    let cancelled = false;
-
-    const fetchBackgroundImage = async () => {
-      const url = `${baseUrl}/api/v1/rooms/${room.id}/bg_image`;
-      console.log('[ChatEmbed] Fetching background image:', url);
-      try {
-        const headers: Record<string, string> = {};
-        const token = getAccessToken?.();
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-        const response = await fetch(url, { headers });
-        if (response.ok) {
-          const blob = await response.blob();
-          if (!cancelled) {
-            const imageUrl = URL.createObjectURL(blob);
-            setBackgroundImage(imageUrl);
-          }
-        } else {
-          // No image available or error
-          if (!cancelled) {
-            setBackgroundImage(null);
-          }
-        }
-      } catch {
-        // Failed to fetch image
-        if (!cancelled) {
-          setBackgroundImage(null);
-        }
-      }
-    };
-
-    fetchBackgroundImage();
-
-    return () => {
-      cancelled = true;
-      // Clean up the object URL when component unmounts or room changes
-      if (backgroundImage) {
-        URL.revokeObjectURL(backgroundImage);
-      }
-    };
-  }, [baseUrl, room.id]);
-
   return (
     <div className="h-full">
       <Chat
@@ -747,8 +791,10 @@ function ChatEmbed({
         placeholder={placeholder || room.welcome_message}
         roomDescription={room.description}
         suggestions={room.suggestions}
-        backgroundImage={backgroundImage}
         getAccessToken={getAccessToken}
+        debug={debug}
+        persist={persist}
+        onRegisterReset={onRegisterReset}
       />
     </div>
   );

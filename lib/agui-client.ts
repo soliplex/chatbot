@@ -199,7 +199,21 @@ export class AGUIClient {
     } else {
       // Subsequent messages: create new run for existing thread
       threadId = this.threadId;
-      runId = await this.createRun(threadId);
+      try {
+        runId = await this.createRun(threadId);
+      } catch (err) {
+        // A restored thread may no longer exist on the server (e.g. it was
+        // evicted after a page reload). Fall back to a fresh thread instead
+        // of failing the whole conversation.
+        console.warn(
+          "[AGUI] Could not resume thread, starting a new one:",
+          err
+        );
+        this.threadId = null;
+        const result = await this.createThread();
+        threadId = result.threadId;
+        runId = result.runId;
+      }
     }
 
     // Build the AG-UI RunAgentInput with required thread_id and run_id
