@@ -4,11 +4,14 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/**'
+      - 'widget/**'
+      - 'components/**'
+      - 'hooks/**'
+      - 'lib/**'
       - 'public/**'
+      - 'esbuild.config.mjs'
       - 'package.json'
       - 'package-lock.json'
-      - 'vite.config.ts'
       - 'tsconfig.json'
       - '.github/workflows/deploy-widget.yml'
 
