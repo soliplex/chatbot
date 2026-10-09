@@ -16,8 +16,8 @@ export interface Room {
 
 export interface ChatWidgetConfig {
   baseUrl?: string; // If not set, shows a prompt to enter the server URL
-  roomId?: string; // Single room ID - if set, skip room selection and go directly to this room
   roomIds?: string[]; // Optional list of room IDs to show; if empty/undefined, show all
+  fallbackRoomIds?: string[]; // Tried in order when none of roomIds is accessible; first accessible wins
   autoHideSeconds?: number; // 0 = never hide
   position?: "bottom-right" | "bottom-left";
   bubbleColor?: string; // Accent for the launcher and primary buttons; defaults to the Soliplex primary
@@ -112,8 +112,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
     }, [persistWidgetState, roomKey]);
 
     const {
-      roomId,
       roomIds,
+      fallbackRoomIds,
       autoHideSeconds = 0,
       position = "bottom-right",
       bubbleColor,
@@ -146,38 +146,9 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       const authReady = authRequired === false || isAuthenticated;
 
       if (canFetchRooms && authReady) {
-        if (roomId) {
-          // Single room mode - fetch just that room
-          fetchSingleRoom(roomId);
-        } else {
-          // Multi-room mode - fetch all rooms
-          fetchRooms();
-        }
+        fetchRooms();
       }
-    }, [isOpen, authRequired, isAuthenticated, roomId]);
-
-    const fetchSingleRoom = async (id: string) => {
-      setIsLoadingRooms(true);
-      setRoomsError(null);
-      try {
-        const headers: Record<string, string> = {};
-        const token = getAccessToken();
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-        const response = await fetch(`${baseUrl}/api/v1/rooms/${id}`, { headers });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch room: ${response.status}`);
-        }
-        const roomData: Omit<Room, 'id'> = await response.json();
-        const room: Room = { ...roomData, id };
-        setSelectedRoom(room);
-      } catch (err) {
-        setRoomsError(err instanceof Error ? err.message : "Failed to load room");
-      } finally {
-        setIsLoadingRooms(false);
-      }
-    };
+    }, [isOpen, authRequired, isAuthenticated]);
 
     const fetchRooms = async () => {
       setIsLoadingRooms(true);
@@ -194,15 +165,33 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
         }
         const roomsData: Record<string, Room> = await response.json();
 
-        // Convert to array and filter if roomIds specified
-        let rooms = Object.entries(roomsData).map(([id, room]) => ({
+        // The backend only lists rooms the caller may access.
+        const allRooms: Room[] = Object.entries(roomsData).map(([id, room]) => ({
           ...room,
           id,
         }));
 
-        // Filter to only specified roomIds if provided
+        // Narrow to the configured roomIds (in that order). If none of them
+        // is accessible, use the first accessible fallback room instead.
+        let rooms = allRooms;
         if (roomIds && roomIds.length > 0) {
-          rooms = rooms.filter(room => roomIds.includes(room.id));
+          rooms = roomIds
+            .map((id) => allRooms.find((room) => room.id === id))
+            .filter((room): room is Room => room !== undefined);
+          if (rooms.length === 0 && fallbackRoomIds) {
+            const fallback = fallbackRoomIds
+              .map((id) => allRooms.find((room) => room.id === id))
+              .find((room) => room !== undefined);
+            if (fallback) {
+              rooms = [fallback];
+              if (debug) {
+                console.info(
+                  "[SoliplexChat] primary room(s) not accessible, using fallback room",
+                  fallback.id
+                );
+              }
+            }
+          }
         }
 
         setAvailableRooms(rooms);
@@ -417,9 +406,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
                   <div className="sp-stack">
                     <button
                       type="button"
-                      onClick={() =>
-                        roomId ? fetchSingleRoom(roomId) : fetchRooms()
-                      }
+                      onClick={() => fetchRooms()}
                       className="sp-btn"
                     >
                       Retry
