@@ -41,6 +41,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
 | `placeholder` | string | `"Ask me anything..."` | Message shown in an empty chat. Overrides the room's welcome message, which is used when this is unset |
+| `noRoomsMessage` | string | `"No rooms available"` | Text shown when the user can't access any room: none of the `roomIds` or `fallbackRoomIds` are accessible, or the server returned no rooms. Rendered as plain text |
 | `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
 | `debug` | boolean | `false` | Render raw client-side tool-call results as JSON in the chat |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
@@ -83,12 +84,13 @@ SoliplexChat.init({
   baseUrl: "https://api.example.com",
   roomIds: ["search"],
   fallbackRoomIds: ["search-lite", "chat"],  // or a single room: ["chat"]
+  noRoomsMessage: "You don't have access to the assistant. Contact support@example.com.",  // optional
 });
 ```
 
 - The configured `roomIds` always win: fallbacks are only consulted when none of them is accessible.
 - Fallbacks are tried in order. The widget opens the first one the user can access, as a single room with no room picker or back button.
-- If no fallback is accessible either, "No rooms available" is shown.
+- If no fallback is accessible either, "No rooms available" is shown. Set `noRoomsMessage` to replace that text, for example with who to contact for access.
 - Accessibility is taken from the room list the backend returns for the current user, so no extra requests are made.
 - The fallback is resolved again every time the room list is loaded. A user who was sent to a fallback room returns to the configured room as soon as they can access it again; the remembered fallback room doesn't override it.
 - With `debug: true`, the widget logs which fallback room it chose to the browser console.

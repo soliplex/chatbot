@@ -24,6 +24,7 @@ export interface ChatWidgetConfig {
   theme?: ThemeMode; // "light", "dark", or "auto" (follow the OS, default)
   title?: string;
   placeholder?: string; // Empty-state message; overrides the room's welcome message
+  noRoomsMessage?: string; // Shown when no configured or fallback room is accessible
   debug?: boolean; // If true, show raw tool-call results as JSON in the chat
   persist?: boolean; // Resume the conversation across reloads (default true)
 }
@@ -120,6 +121,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       theme = "auto",
       title = "Chat with us",
       placeholder,
+      noRoomsMessage,
       debug = false,
       persist = true,
     } = config;
@@ -428,6 +430,7 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
               <RoomSelector
                 rooms={availableRooms}
                 onSelect={setSelectedRoom}
+                noRoomsMessage={noRoomsMessage}
               />
             )}
           </div>
@@ -663,16 +666,18 @@ return (
 function RoomSelector({
 rooms,
 onSelect,
+noRoomsMessage,
 }: {
 rooms: Room[];
 onSelect: (room: Room) => void;
+noRoomsMessage?: string;
 }) {
 const [selectedId, setSelectedId] = useState<string>("");
 
 if (rooms.length === 0) {
   return (
     <div className="sp-screen">
-      <p className="sp-screen-subtitle">No rooms available</p>
+      <p className="sp-screen-subtitle">{noRoomsMessage || "No rooms available"}</p>
     </div>
   );
 }

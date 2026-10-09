@@ -59,13 +59,14 @@ The widget will:
 | `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible to the user, tried in order; the first accessible one wins. Ignored without `roomIds` |
 | `title` | string | `"Chat with us"` | Chat header title |
 | `placeholder` | string | `"Ask me anything..."` | Empty state message; overrides the room's welcome message |
+| `noRoomsMessage` | string | `"No rooms available"` | Text shown when the user can't access any room (none of `roomIds` or `fallbackRoomIds`, or the server returned none). Plain text |
 | `bubbleColor` | string | Soliplex primary | Accent for the launcher bubble and primary buttons; the icon/label color is picked automatically for contrast |
 | `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
 | `autoHideSeconds` | number | `0` | Auto-hide delay (0 = never) |
 | `tools` | array | `[]` | Custom client-side tools |
 
-**Note:** If `roomId` is set, the widget will skip the room selector and go directly to the specified room after authentication (if auth is enabled). If none of the configured rooms are accessible to the logged-in user, the widget opens the first accessible room from `fallbackRoomIds` instead, without a room picker; with no accessible fallback it shows "No rooms available".
+**Note:** If `roomId` is set, the widget will skip the room selector and go directly to the specified room after authentication (if auth is enabled). If none of the configured rooms are accessible to the logged-in user, the widget opens the first accessible room from `fallbackRoomIds` instead, without a room picker; with no accessible fallback it shows "No rooms available", or the `noRoomsMessage` text if set.
 
 ## Authentication
 
