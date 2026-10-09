@@ -160,24 +160,30 @@ export function useAGUIChat({ baseUrl, roomId, tools = [], getAccessToken, debug
                 break;
 
               case "TEXT_MESSAGE_START":
+                // Don't add the message yet: the backend can emit empty
+                // START/END pairs with no content in between, which would
+                // otherwise show up as blank bubbles. The message is added
+                // on its first non-empty content delta instead.
                 currentMessageId = evt.messageId as string;
                 currentContent = "";
-                setMessages(prev => [
-                  ...prev,
-                  { id: currentMessageId, role: "assistant", content: "" },
-                ]);
                 break;
 
-              case "TEXT_MESSAGE_CONTENT":
-                currentContent += evt.delta as string;
+              case "TEXT_MESSAGE_CONTENT": {
+                const delta = evt.delta as string;
+                if (!delta) break;
+                const isFirstDelta = currentContent === "";
+                currentContent += delta;
+                const messageId = currentMessageId;
+                const content = currentContent;
                 setMessages(prev =>
-                  prev.map(m =>
-                    m.id === currentMessageId
-                      ? { ...m, content: currentContent }
-                      : m
-                  )
+                  isFirstDelta && !prev.some(m => m.id === messageId)
+                    ? [...prev, { id: messageId, role: "assistant", content }]
+                    : prev.map(m =>
+                        m.id === messageId ? { ...m, content } : m
+                      )
                 );
                 break;
+              }
 
               case "TEXT_MESSAGE_END":
                 break;
