@@ -23,7 +23,7 @@ A React-based embeddable chat widget that connects to a Soliplex/PydanticAI back
 │   └── index.tsx          # Embeddable widget entry point
 ├── public/
 │   ├── index.html         # Live demo page (deployed to GitHub Pages)
-│   ├── soliplex-chat.js   # Built widget bundle (after build)
+│   ├── soliplex-chat.js   # Built widget bundle (git-ignored; built by CI)
 │   └── soliplex-auth-callback.html # OIDC popup callback page
 ├── docs/
 │   ├── readme.md          # This file
@@ -111,7 +111,7 @@ Build a standalone JavaScript bundle that can be embedded in any website:
 npm run build:widget
 ```
 
-This creates `public/soliplex-chat.js` (~200KB minified).
+This creates `public/soliplex-chat.js` (~200KB minified). The output is git-ignored: CI builds it on every push to `main` and publishes it to GitHub Pages at `https://soliplex.github.io/chatbot/soliplex-chat.js`, and the release workflow attaches it to each GitHub release.
 
 #### Widget Build Output
 
