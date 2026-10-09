@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useImperativeHandle, forwardRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from "react";
 import Chat from "./Chat";
 import { useAuth, type AuthSystem } from "@/hooks/useAuth";
+import { accentOverrides, injectStyles, type ThemeMode } from "@/lib/theme";
 
 // Room information from the API
 export interface Room {
@@ -19,7 +20,8 @@ export interface ChatWidgetConfig {
   fallbackRoomIds?: string[]; // Tried in order when none of roomIds is accessible; first accessible wins
   autoHideSeconds?: number; // 0 = never hide
   position?: "bottom-right" | "bottom-left";
-  bubbleColor?: string;
+  bubbleColor?: string; // Accent for the launcher and primary buttons; defaults to the Soliplex primary
+  theme?: ThemeMode; // "light", "dark", or "auto" (follow the OS, default)
   title?: string;
   placeholder?: string;
   debug?: boolean; // If true, show raw tool-call results as JSON in the chat
@@ -46,6 +48,9 @@ interface ChatWidgetProps {
 
 const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
   function ChatWidget({ config, tools = [], onOpenChange }, ref) {
+    // Synchronous and idempotent, so the first paint is already styled.
+    injectStyles();
+
     // Widget open/room state is persisted (scoped per server) so a reload
     // reopens the widget in the room the user was last using.
     const persistWidgetState =
@@ -111,7 +116,8 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       fallbackRoomIds,
       autoHideSeconds = 0,
       position = "bottom-right",
-      bubbleColor = "#2563eb",
+      bubbleColor,
+      theme = "auto",
       title = "Chat with us",
       placeholder,
       debug = false,
@@ -299,8 +305,10 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
       }
     }, [isVisible, isOpen, position]);
 
-    const positionClasses =
-      position === "bottom-right" ? "right-4" : "left-4";
+    const accentStyle = useMemo(
+      () => accentOverrides(bubbleColor) as React.CSSProperties | undefined,
+      [bubbleColor]
+    );
 
     if (!isVisible && !isOpen) {
       return null;
@@ -308,444 +316,389 @@ const ChatWidget = forwardRef<ChatWidgetRef, ChatWidgetProps>(
 
     return (
       <div
-        className={`fixed bottom-4 ${positionClasses} z-[9999]`}
-        style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}
+        className={`soliplex-root sp-widget ${
+          position === "bottom-left" ? "sp-widget-left" : "sp-widget-right"
+        }`}
+        data-sp-theme={theme}
+        style={accentStyle}
       >
         {/* Chat Panel */}
         {isOpen && (
           <div
-            className="mb-4 bg-white rounded-lg shadow-2xl overflow-hidden"
-            style={{
-              width: "380px",
-              height: "600px",
-              maxHeight: "calc(100vh - 120px)",
-            }}
+            className="sp-panel"
+            role="dialog"
+            aria-label={selectedRoom ? selectedRoom.name : title}
           >
-            {/* Header */}
-            <div
-              className="flex items-center justify-between px-4 py-3 text-white"
-              style={{ backgroundColor: bubbleColor }}
-            >
-              <div className="flex items-center gap-2">
+            <header className="sp-header">
+              <div className="sp-header-start">
                 {selectedRoom && availableRooms.length > 1 && (
                   <button
+                    type="button"
                     onClick={handleBackToRooms}
-                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    className="sp-icon-btn"
                     aria-label="Back to rooms"
+                    title="Back to rooms"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <Icons.Back />
                   </button>
                 )}
-                <span className="font-medium">
+                <span className="sp-header-title">
                   {selectedRoom ? selectedRoom.name : title}
                 </span>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="sp-header-actions">
                 {/* Start a new conversation - only while chatting in a room */}
                 {selectedRoom && (
                   <button
+                    type="button"
                     onClick={() => resetChatRef.current?.()}
-                    className="p-1 hover:bg-white/20 rounded transition-colors"
+                    className="sp-icon-btn"
                     aria-label="Start new conversation"
                     title="Start new conversation"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <Icons.NewChat />
                   </button>
                 )}
                 {/* Logout button - only show when authenticated */}
                 {isAuthenticated && (
                   <button
+                    type="button"
                     onClick={handleLogout}
-                    className="p-1 hover:bg-white/20 rounded transition-colors"
-                    aria-label="Logout"
-                    title="Logout"
+                    className="sp-icon-btn"
+                    aria-label="Sign out"
+                    title="Sign out"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    <Icons.SignOut />
                   </button>
                 )}
-                {/* Close button */}
                 <button
+                  type="button"
                   onClick={handleClose}
-                  className="p-1 hover:bg-white/20 rounded transition-colors"
+                  className="sp-icon-btn"
                   aria-label="Close chat"
+                  title="Close chat"
                 >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <Icons.Close />
                 </button>
               </div>
-            </div>
+            </header>
 
-            {/* Content Area */}
-            <div style={{ height: "calc(100% - 52px)" }}>
+            <div className="sp-panel-body">
               {/* Server URL prompt when baseUrl is not configured */}
               {!baseUrl ? (
-                <ServerUrlPrompt
-                  onConnect={(url) => setCustomBaseUrl(url)}
-                  bubbleColor={bubbleColor}
-                />
-              ) : /* Auth loading state */
-              isAuthLoading ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-gray-500">Checking authentication...</div>
-                </div>
-              ) : /* Auth required but not authenticated */
-              authRequired && !isAuthenticated ? (
+                <ServerUrlPrompt onConnect={(url) => setCustomBaseUrl(url)} />
+              ) : isAuthLoading ? (
+                <StatusScreen message="Checking authentication…" />
+              ) : authRequired && !isAuthenticated ? (
                 <LoginSelector
                   authSystems={authSystems}
                   onLogin={login}
                   error={authError}
-                  bubbleColor={bubbleColor}
                 />
               ) : isLoadingRooms ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="text-gray-500">Loading rooms...</div>
-                </div>
+                <StatusScreen message="Loading rooms…" />
               ) : roomsError ? (
-                <div className="h-full flex flex-col items-center justify-center p-4">
-                  <div className="text-red-700 text-center mb-4">{roomsError}</div>
-                  <button
-                    onClick={fetchRooms}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                  >
-                    Retry
-                  </button>
+                <div className="sp-screen">
+                  <div className="sp-alert" role="alert">
+                    <Icons.AlertCircle />
+                    <span>{roomsError}</span>
+                  </div>
+                  <div className="sp-stack">
+                    <button
+                      type="button"
+                      onClick={() => fetchRooms()}
+                      className="sp-btn"
+                    >
+                      Retry
+                    </button>
+                  </div>
                 </div>
               ) : selectedRoom ? (
-                <ChatEmbed
-                  baseUrl={baseUrl!}
-                  room={selectedRoom}
-                  tools={tools}
-                  placeholder={placeholder}
-                  getAccessToken={getAccessToken}
-                  debug={debug}
-                  persist={persist}
-                  onRegisterReset={handleRegisterReset}
-                />
-              ) : (
-                <RoomSelector
-                  rooms={availableRooms}
-                  onSelect={setSelectedRoom}
-                  bubbleColor={bubbleColor}
-                />
-              )}
-            </div>
+              <ChatEmbed
+                baseUrl={baseUrl!}
+                room={selectedRoom}
+                tools={tools}
+                placeholder={placeholder}
+                getAccessToken={getAccessToken}
+                debug={debug}
+                persist={persist}
+                onRegisterReset={handleRegisterReset}
+              />
+            ) : (
+              <RoomSelector
+                rooms={availableRooms}
+                onSelect={setSelectedRoom}
+              />
+            )}
           </div>
-        )}
-
-        {/* Floating Bubble */}
-        <button
-          onClick={isOpen ? handleClose : handleOpen}
-          className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110"
-          style={{ backgroundColor: bubbleColor }}
-          aria-label={isOpen ? "Close chat" : "Open chat"}
-        >
-          {isOpen ? (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 text-white"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          ) : (
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6 text-white"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-            >
-              <path
-                fillRule="evenodd"
-                d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z"
-                clipRule="evenodd"
-              />
-            </svg>
-          )}
-        </button>
-      </div>
-    );
-  }
-);
-
-// Login selector component for authentication
-function LoginSelector({
-  authSystems,
-  onLogin,
-  error,
-  bubbleColor,
-}: {
-  authSystems: Record<string, AuthSystem>;
-  onLogin: (systemId: string) => Promise<void>;
-  error: string | null;
-  bubbleColor: string;
-}) {
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [loginError, setLoginError] = useState<string | null>(null);
-
-  const systems = Object.values(authSystems);
-
-  const handleLogin = async (systemId: string) => {
-    setIsLoggingIn(true);
-    setLoginError(null);
-    try {
-      await onLogin(systemId);
-    } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  if (systems.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center p-4">
-        <div className="text-gray-500 text-center">No authentication providers configured</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full flex flex-col items-center justify-center p-4">
-      <div
-        className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
-        style={{ backgroundColor: bubbleColor }}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-6 w-6 text-white"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </div>
-      <h3 className="text-lg font-semibold mb-2" style={{ color: "#111827" }}>
-        Sign in to continue
-      </h3>
-      <p className="text-sm text-center mb-4" style={{ color: "#6b7280" }}>
-        Please sign in to access the chat
-      </p>
-
-      {(error || loginError) && (
-        <div className="w-full max-w-xs mb-4 p-3 rounded-lg text-sm text-center"
-          style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
-          {error || loginError}
         </div>
       )}
 
-      <div className="w-full max-w-xs space-y-2">
-        {systems.map((system) => (
-          <button
-            key={system.id}
-            onClick={() => handleLogin(system.id)}
-            disabled={isLoggingIn}
-            className="w-full p-3 rounded-lg text-white font-medium transition-all"
-            style={{
-              backgroundColor: isLoggingIn ? "#9ca3af" : bubbleColor,
-              cursor: isLoggingIn ? "not-allowed" : "pointer",
-            }}
-          >
-            {isLoggingIn ? "Signing in..." : system.title}
-          </button>
-        ))}
-      </div>
+      {/* Floating launcher */}
+      <button
+        type="button"
+        onClick={isOpen ? handleClose : handleOpen}
+        className="sp-launcher"
+        aria-label={isOpen ? "Close chat" : "Open chat"}
+        aria-expanded={isOpen}
+      >
+        {isOpen ? <Icons.Close /> : <Icons.Chat />}
+      </button>
     </div>
   );
+}
+);
+
+// =============================================================================
+// ICONS - Inline SVG components (same stroke family as Chat.tsx)
+// =============================================================================
+
+const svgProps = {
+viewBox: "0 0 24 24",
+fill: "none",
+stroke: "currentColor",
+strokeWidth: 2,
+strokeLinecap: "round" as const,
+strokeLinejoin: "round" as const,
+"aria-hidden": true,
+};
+
+const Icons = {
+Chat: () => (
+  <svg {...svgProps}>
+    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+  </svg>
+),
+Close: () => (
+  <svg {...svgProps}>
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+),
+Back: () => (
+  <svg {...svgProps}>
+    <line x1="19" y1="12" x2="5" y2="12" />
+    <polyline points="12 19 5 12 12 5" />
+  </svg>
+),
+NewChat: () => (
+  <svg {...svgProps}>
+    <line x1="12" y1="5" x2="12" y2="19" />
+    <line x1="5" y1="12" x2="19" y2="12" />
+  </svg>
+),
+SignOut: () => (
+  <svg {...svgProps}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+),
+User: () => (
+  <svg {...svgProps}>
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+),
+Server: () => (
+  <svg {...svgProps}>
+    <rect x="2" y="2" width="20" height="8" rx="2" />
+    <rect x="2" y="14" width="20" height="8" rx="2" />
+    <line x1="6" y1="6" x2="6.01" y2="6" />
+    <line x1="6" y1="18" x2="6.01" y2="18" />
+  </svg>
+),
+AlertCircle: () => (
+  <svg {...svgProps}>
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+),
+};
+
+// A centred progress message for the panel's loading states
+function StatusScreen({ message }: { message: string }) {
+return (
+  <div className="sp-screen" role="status">
+    <div className="sp-screen-status">
+      <span className="sp-spinner" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
+  </div>
+);
+}
+
+// Login selector component for authentication
+function LoginSelector({
+authSystems,
+onLogin,
+error,
+}: {
+authSystems: Record<string, AuthSystem>;
+onLogin: (systemId: string) => Promise<void>;
+error: string | null;
+}) {
+const [isLoggingIn, setIsLoggingIn] = useState(false);
+const [loginError, setLoginError] = useState<string | null>(null);
+
+const systems = Object.values(authSystems);
+
+const handleLogin = async (systemId: string) => {
+  setIsLoggingIn(true);
+  setLoginError(null);
+  try {
+    await onLogin(systemId);
+  } catch (err) {
+    setLoginError(err instanceof Error ? err.message : "Login failed");
+  } finally {
+    setIsLoggingIn(false);
+  }
+};
+
+if (systems.length === 0) {
+  return (
+    <div className="sp-screen">
+      <p className="sp-screen-subtitle">No authentication providers configured</p>
+    </div>
+  );
+}
+
+return (
+  <div className="sp-screen">
+    <div className="sp-screen-icon">
+      <Icons.User />
+    </div>
+    <h3 className="sp-screen-title">Sign in to continue</h3>
+    <p className="sp-screen-subtitle">Please sign in to access the chat</p>
+
+    <div className="sp-stack">
+      {(error || loginError) && (
+        <div className="sp-alert" role="alert">
+          <Icons.AlertCircle />
+          <span>{error || loginError}</span>
+        </div>
+      )}
+      {systems.map((system) => (
+        <button
+          key={system.id}
+          type="button"
+          onClick={() => handleLogin(system.id)}
+          disabled={isLoggingIn}
+          className="sp-btn"
+        >
+          {isLoggingIn ? "Signing in…" : system.title}
+        </button>
+      ))}
+    </div>
+  </div>
+);
 }
 
 // Server URL prompt component (shown when baseUrl is not configured)
 function ServerUrlPrompt({
-  onConnect,
-  bubbleColor,
+onConnect,
 }: {
-  onConnect: (url: string) => void;
-  bubbleColor: string;
+onConnect: (url: string) => void;
 }) {
-  const [url, setUrl] = useState("");
-  const [error, setError] = useState<string | null>(null);
+const [url, setUrl] = useState("");
+const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = url.trim().replace(/\/+$/, ""); // Remove trailing slashes
-    if (!trimmed) {
-      setError("Please enter a server URL");
-      return;
-    }
-    try {
-      new URL(trimmed);
-    } catch {
-      setError("Please enter a valid URL (e.g. https://example.com)");
-      return;
-    }
-    setError(null);
-    onConnect(trimmed);
-  };
+const handleSubmit = (e: React.FormEvent) => {
+  e.preventDefault();
+  const trimmed = url.trim().replace(/\/+$/, ""); // Remove trailing slashes
+  if (!trimmed) {
+    setError("Please enter a server URL");
+    return;
+  }
+  try {
+    new URL(trimmed);
+  } catch {
+    setError("Please enter a valid URL (e.g. https://example.com)");
+    return;
+  }
+  setError(null);
+  onConnect(trimmed);
+};
 
-  return (
-    <div className="h-full flex flex-col items-center justify-center p-4">
-      <div
-        className="w-12 h-12 rounded-full flex items-center justify-center mb-4"
-        style={{ backgroundColor: bubbleColor }}
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-6 w-6 text-white"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-        >
-          <path
-            fillRule="evenodd"
-            d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </div>
-      <h3 className="text-lg font-semibold mb-2" style={{ color: "#111827" }}>
-        Connect to server
-      </h3>
-      <p className="text-sm text-center mb-4" style={{ color: "#6b7280" }}>
-        Enter the URL of the Soliplex server
-      </p>
+return (
+  <div className="sp-screen">
+    <div className="sp-screen-icon">
+      <Icons.Server />
+    </div>
+    <h3 className="sp-screen-title">Connect to server</h3>
+    <p className="sp-screen-subtitle">Enter the URL of the Soliplex server</p>
 
+    <form onSubmit={handleSubmit} className="sp-stack" noValidate>
+      <label htmlFor="soliplex-server-url" className="sp-label">
+        Server URL
+      </label>
+      <input
+        id="soliplex-server-url"
+        type="url"
+        inputMode="url"
+        autoComplete="url"
+        value={url}
+        onChange={(e) => setUrl(e.target.value)}
+        placeholder="https://example.com:8000"
+        className="sp-field"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? "soliplex-server-url-error" : undefined}
+      />
       {error && (
-        <div className="w-full max-w-xs mb-4 p-3 rounded-lg text-sm text-center"
-          style={{ backgroundColor: "#fef2f2", color: "#dc2626", border: "1px solid #fecaca" }}>
-          {error}
+        <div id="soliplex-server-url-error" className="sp-alert" role="alert">
+          <Icons.AlertCircle />
+          <span>{error}</span>
         </div>
       )}
-
-      <form onSubmit={handleSubmit} className="w-full max-w-xs space-y-2">
-        <input
-          type="text"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://example.com:8000"
-          className="w-full p-3 rounded-lg border text-base"
-          style={{
-            borderColor: "#d1d5db",
-            backgroundColor: "#ffffff",
-            color: "#111827",
-            outline: "none",
-          }}
-        />
-        <button
-          type="submit"
-          className="w-full p-3 rounded-lg text-white font-medium transition-all"
-          style={{
-            backgroundColor: bubbleColor,
-            cursor: "pointer",
-          }}
-        >
-          Connect
-        </button>
-      </form>
-    </div>
-  );
+      <button type="submit" className="sp-btn">
+        Connect
+      </button>
+    </form>
+  </div>
+);
 }
 
 // Room selector component with dropdown
 function RoomSelector({
-  rooms,
-  onSelect,
-  bubbleColor,
+rooms,
+onSelect,
 }: {
-  rooms: Room[];
-  onSelect: (room: Room) => void;
-  bubbleColor: string;
+rooms: Room[];
+onSelect: (room: Room) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string>("");
+const [selectedId, setSelectedId] = useState<string>("");
 
-  if (rooms.length === 0) {
-    return (
-      <div className="h-full flex items-center justify-center p-4">
-        <div className="text-gray-500 text-center">No rooms available</div>
-      </div>
-    );
-  }
-
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const roomId = e.target.value;
-    setSelectedId(roomId);
-    const room = rooms.find(r => r.id === roomId);
-    if (room) {
-      onSelect(room);
-    }
-  };
-
+if (rooms.length === 0) {
   return (
-    <div className="h-full p-4">
-      <label
-        htmlFor="room-select"
-        className="block text-sm font-medium mb-2"
-        style={{ color: "#374151" }}
-      >
-        Select a conversation:
+    <div className="sp-screen">
+      <p className="sp-screen-subtitle">No rooms available</p>
+    </div>
+  );
+}
+
+const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+  const roomId = e.target.value;
+  setSelectedId(roomId);
+  const room = rooms.find(r => r.id === roomId);
+  if (room) {
+    onSelect(room);
+  }
+};
+
+return (
+  <div className="sp-screen">
+    <div className="sp-stack">
+      <label htmlFor="soliplex-room-select" className="sp-label">
+        Select a conversation
       </label>
       <select
-        id="room-select"
+        id="soliplex-room-select"
         value={selectedId}
         onChange={handleChange}
-        className="w-full p-3 rounded-lg border text-base"
-        style={{
-          borderColor: "#d1d5db",
-          backgroundColor: "#ffffff",
-          color: "#111827",
-          outline: "none",
-        }}
+        className="sp-field"
       >
-        <option value="" disabled>Choose a room...</option>
+        <option value="" disabled>Choose a room…</option>
         {rooms.map((room) => (
           <option key={room.id} value={room.id}>
             {room.name} ({room.id})
@@ -753,7 +706,8 @@ function RoomSelector({
         ))}
       </select>
     </div>
-  );
+  </div>
+);
 }
 
 // Simplified Chat component for embedding
@@ -782,21 +736,20 @@ function ChatEmbed({
   onRegisterReset?: (reset: () => void) => void;
 }) {
   return (
-    <div className="h-full">
-      <Chat
-        baseUrl={baseUrl}
-        roomId={room.id}
-        externalTools={tools}
-        showHeader={false}
-        placeholder={placeholder || room.welcome_message}
-        roomDescription={room.description}
-        suggestions={room.suggestions}
-        getAccessToken={getAccessToken}
-        debug={debug}
-        persist={persist}
-        onRegisterReset={onRegisterReset}
-      />
-    </div>
+    <Chat
+      baseUrl={baseUrl}
+      roomId={room.id}
+      externalTools={tools}
+      showHeader={false}
+      placeholder={placeholder || room.welcome_message}
+      roomDescription={room.description}
+      suggestions={room.suggestions}
+      getAccessToken={getAccessToken}
+      debug={debug}
+      persist={persist}
+      onRegisterReset={onRegisterReset}
+      nested
+    />
   );
 }
 

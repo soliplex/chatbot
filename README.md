@@ -59,7 +59,8 @@ The widget will:
 | `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible to the user, tried in order; the first accessible one wins. Ignored without `roomIds` |
 | `title` | string | `"Chat with us"` | Chat header title |
 | `placeholder` | string | `"Ask me anything..."` | Empty state message |
-| `bubbleColor` | string | `"#2563eb"` | Chat bubble color |
+| `bubbleColor` | string | Soliplex primary | Accent for the launcher bubble and primary buttons; the icon/label color is picked automatically for contrast |
+| `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
 | `autoHideSeconds` | number | `0` | Auto-hide delay (0 = never) |
 | `tools` | array | `[]` | Custom client-side tools |

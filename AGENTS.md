@@ -10,11 +10,12 @@ An embeddable React chat widget (`SoliplexChat`) that talks to a Soliplex/Pydant
 
 | Path | Role |
 |------|------|
-| `widget/index.tsx` | Bundle entry. Defines `window.SoliplexChat` (`init`/`destroy`/`open`/`close`), resolves string tool handlers from `window`, and **injects the widget's CSS** |
+| `widget/index.tsx` | Bundle entry. Defines `window.SoliplexChat` (`init`/`destroy`/`open`/`close`), and resolves string tool handlers from `window` |
 | `components/ChatWidget.tsx` | Floating bubble/panel, server URL prompt, login screen, room selection, persisted open/room state |
 | `components/Chat.tsx` | Message list, input, markdown rendering, tool-call display |
 | `hooks/useAGUIChat.ts` | Chat state, client-side tool execution, thread/message persistence |
 | `hooks/useAuth.ts`, `lib/auth-service.ts` | OIDC popup flow and token storage (`/api/login`, `/api/user_info`) |
+| `lib/theme.ts` | **All of the widget's CSS**: the Soliplex design tokens (`--sp-*`) and the component styles, injected once by `injectStyles()` |
 | `lib/agui-client.ts` | AG-UI client (`/api/v1/rooms/{room}/agui[/{thread}[/{run}]]`) |
 | `public/` | GitHub Pages root: demo `index.html`, built bundle + sourcemap, `soliplex-auth-callback.html`, `plone_soliplex_tool.js` |
 | `docs/` | User docs, example pages, and **copies** of `soliplex-chat.js(.map)` and `plone_soliplex_tool.js` |
@@ -36,7 +37,8 @@ There is no test suite and no ESLint config (`npm run lint` prompts to set one u
 ## Conventions and gotchas
 
 - **The built bundle is committed.** After changing anything under `widget/`, `components/`, `hooks/` or `lib/`, run `npm run build:widget` and commit `public/soliplex-chat.js` and `.map`. Then copy both into `docs/` so the copies stay identical. If you edit `plone_soliplex_tool.js`, keep `public/` and `docs/` in sync the same way.
-- **Tailwind does not reach the bundle.** The widget renders inside arbitrary host pages, and its styles come from the hand-written utility classes in `injectStyles()` in `widget/index.tsx`. If you use a class in a component that isn't defined there, add a rule for it, or the widget will be unstyled when embedded.
+- **Tailwind does not reach the bundle.** The widget renders inside arbitrary host pages, and its styles come from the stylesheet in `lib/theme.ts`. If you use a class in a component that isn't defined there, add a rule for it, or the widget will be unstyled when embedded.
+- **Styling uses the Soliplex design tokens.** Colors, spacing, radii and type sizes are the `--sp-*` custom properties, copied from `design_system/tokens.css` in `soliplex_frontend`; don't hard-code values the design system lacks. Every rule is scoped under `.soliplex-root` so nothing leaks into the host page, and element resets use `:where()` so host element rules can't restyle the widget while component classes still win over the resets.
 - **Adding a config option** means touching the `ChatWidgetConfig` interface in `components/ChatWidget.tsx`, copying the option explicitly into `widgetConfig` in `widget/index.tsx`, and adding it to the options table in `README.md` and `docs/usage.md`.
 - **Persistence**: thread ID, messages, open state and selected room live in `localStorage`, keyed per server (and per room where relevant), and are gated by `config.persist` (default `true`). Auth tokens are stored separately in `lib/auth-service.ts`. Wrap storage access so a failure doesn't break the widget, and keep the existing key scheme so you don't strand users' saved conversations.
 - **Security**: assistant markdown is rendered through `dangerouslySetInnerHTML` in `Chat.tsx` (`parseSimpleMarkdown`). Any rendering change must keep the HTML escaping (`escapeHtml`) and the URL scheme allow-list.
