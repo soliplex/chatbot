@@ -32,3 +32,10 @@ Thumbs.db
 
 # Vercel
 .vercel
+
+# Built widget bundle: produced by `npm run build:widget`, published by CI
+# (GitHub Pages deploy and release assets), never committed.
+public/soliplex-chat.js
+public/soliplex-chat.js.map
+docs/soliplex-chat.js
+docs/soliplex-chat.js.map

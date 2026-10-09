@@ -38,130 +38,6 @@ declare global {
   }
 }
 
-// Inject Tailwind styles
-function injectStyles() {
-  if (document.getElementById("soliplex-chat-styles")) return;
-
-  const style = document.createElement("style");
-  style.id = "soliplex-chat-styles";
-  style.textContent = `
-    /* Reset and base styles for the widget */
-    #soliplex-chat-widget * {
-      box-sizing: border-box;
-      margin: 0;
-    }
-
-    #soliplex-chat-widget {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    /* Tailwind-like utility classes */
-    .fixed { position: fixed; }
-    .absolute { position: absolute; }
-    .relative { position: relative; }
-    .bottom-4 { bottom: 1rem; }
-    .right-4 { right: 1rem; }
-    .left-4 { left: 1rem; }
-    .z-\\[9999\\] { z-index: 9999; }
-    .mb-3 { margin-bottom: 0.75rem; }
-    .mb-4 { margin-bottom: 1rem; }
-    .mt-1 { margin-top: 0.25rem; }
-    .mt-2 { margin-top: 0.5rem; }
-    .mt-8 { margin-top: 2rem; }
-    .p-1 { padding: 0.25rem; }
-    .p-3 { padding: 0.75rem; }
-    .p-4 { padding: 1rem; }
-    .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
-    .px-4 { padding-left: 1rem; padding-right: 1rem; }
-    .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-    .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-    .py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
-    .flex { display: flex; }
-    .flex-col { flex-direction: column; }
-    .flex-1 { flex: 1 1 0%; }
-    .items-center { align-items: center; }
-    .justify-between { justify-content: space-between; }
-    .justify-center { justify-content: center; }
-    .justify-start { justify-content: flex-start; }
-    .justify-end { justify-content: flex-end; }
-    .gap-1 { gap: 0.25rem; }
-    .gap-2 { gap: 0.5rem; }
-    .space-y-2 > * + * { margin-top: 0.5rem; }
-    .space-y-4 > * + * { margin-top: 1rem; }
-    .h-5 { height: 1.25rem; }
-    .h-6 { height: 1.5rem; }
-    .h-14 { height: 3.5rem; }
-    .h-full { height: 100%; }
-    .h-screen { height: 100vh; }
-    .w-2 { width: 0.5rem; }
-    .h-2 { height: 0.5rem; }
-    .w-5 { width: 1.25rem; }
-    .w-6 { width: 1.5rem; }
-    .w-14 { width: 3.5rem; }
-    .max-w-3xl { max-width: 48rem; }
-    .max-w-md { max-width: 28rem; }
-    .max-w-\\[80\\%\\] { max-width: 80%; }
-    .w-full { width: 100%; }
-    .mx-auto { margin-left: auto; margin-right: auto; }
-    .text-left { text-align: left; }
-    .overflow-hidden { overflow: hidden; }
-    .overflow-y-auto { overflow-y: auto; }
-    .overflow-x-auto { overflow-x: auto; }
-    .rounded { border-radius: 0.25rem; }
-    .rounded-lg { border-radius: 0.5rem; }
-    .rounded-full { border-radius: 9999px; }
-    .rounded-br-sm { border-bottom-right-radius: 0.125rem; }
-    .rounded-bl-sm { border-bottom-left-radius: 0.125rem; }
-    .border { border-width: 1px; border-style: solid; border-color: #e5e7eb; }
-    .border-b { border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: #e5e7eb; }
-    .border-t { border-top-width: 1px; border-top-style: solid; border-top-color: #e5e7eb; }
-    .bg-white { background-color: #ffffff; }
-    .bg-gray-100 { background-color: #f3f4f6; }
-    .bg-gray-400 { background-color: #9ca3af; }
-    .bg-blue-600 { background-color: #2563eb; }
-    .bg-red-50 { background-color: #fef2f2; }
-    .text-white { color: #ffffff; }
-    .text-gray-500 { color: #6b7280; }
-    .text-gray-600 { color: #4b5563; }
-    .text-gray-900 { color: #111827; }
-    .text-red-700 { color: #b91c1c; }
-    .text-sm { font-size: 0.875rem; }
-    .text-xs { font-size: 0.75rem; }
-    .text-xl { font-size: 1.25rem; }
-    .text-center { text-align: center; }
-    .font-medium { font-weight: 500; }
-    .font-semibold { font-weight: 600; }
-    .whitespace-pre-wrap { white-space: pre-wrap; }
-    .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05); }
-    .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
-    .transition-all { transition: all 0.3s ease; }
-    .transition-colors { transition: color 0.15s ease, background-color 0.15s ease; }
-    .duration-300 { transition-duration: 300ms; }
-    .hover\\:scale-110:hover { transform: scale(1.1); }
-    .hover\\:bg-white\\/20:hover { background-color: rgba(255,255,255,0.2); }
-    .hover\\:bg-gray-100:hover { background-color: #f3f4f6; }
-    .hover\\:bg-blue-50:hover { background-color: #eff6ff; }
-    .hover\\:bg-blue-700:hover { background-color: #1d4ed8; }
-    .hover\\:border-blue-300:hover { border-color: #93c5fd; }
-    .hover\\:text-gray-900:hover { color: #111827; }
-    .focus\\:outline-none:focus { outline: none; }
-    .focus\\:ring-2:focus { box-shadow: 0 0 0 2px #3b82f6; }
-    .disabled\\:bg-gray-100:disabled { background-color: #f3f4f6; }
-    .disabled\\:bg-gray-400:disabled { background-color: #9ca3af; }
-    .disabled\\:cursor-not-allowed:disabled { cursor: not-allowed; }
-
-    /* Animation */
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-25%); }
-    }
-    .animate-bounce { animation: bounce 1s infinite; }
-  `;
-  document.head.appendChild(style);
-}
-
 // Resolve tool handlers from string references
 function resolveToolHandlers(
   tools: ExternalToolConfig[]
@@ -239,8 +115,6 @@ function init(config: WidgetInitConfig) {
     return;
   }
 
-  injectStyles();
-
   // Create container
   const containerId = config.containerId || "soliplex-chat-widget";
   let container = document.getElementById(containerId);
@@ -259,13 +133,36 @@ function init(config: WidgetInitConfig) {
     roomIds = [config.roomId];
   }
 
+  // Normalize fallbackRoomIds to a de-duplicated list of non-empty IDs that
+  // aren't already primaries. Fallbacks only apply when roomIds is set.
+  let fallbackRoomIds: string[] | undefined;
+  if (config.fallbackRoomIds !== undefined && !Array.isArray(config.fallbackRoomIds)) {
+    console.warn("SoliplexChat: fallbackRoomIds ignored because it is not an array");
+  } else if (config.fallbackRoomIds !== undefined) {
+    const ids: string[] = [];
+    for (const id of config.fallbackRoomIds as unknown[]) {
+      if (typeof id === "string" && id !== "" && !ids.includes(id) && !roomIds?.includes(id)) {
+        ids.push(id);
+      }
+    }
+    if (ids.length > 0) {
+      if (roomIds && roomIds.length > 0) {
+        fallbackRoomIds = ids;
+      } else {
+        console.warn("SoliplexChat: fallbackRoomIds ignored because roomIds is empty");
+      }
+    }
+  }
+
   // Extract widget config
   const widgetConfig: ChatWidgetConfig = {
     baseUrl: config.baseUrl, // May be undefined - widget will show server URL prompt
     roomIds: roomIds,
+    fallbackRoomIds: fallbackRoomIds,
     autoHideSeconds: config.autoHideSeconds,
     position: config.position,
     bubbleColor: config.bubbleColor,
+    theme: config.theme,
     title: config.title,
     placeholder: config.placeholder,
     debug: config.debug,

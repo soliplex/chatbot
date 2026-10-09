@@ -23,7 +23,7 @@ A React-based embeddable chat widget that connects to a Soliplex/PydanticAI back
 │   └── index.tsx          # Embeddable widget entry point
 ├── public/
 │   ├── index.html         # Live demo page (deployed to GitHub Pages)
-│   ├── soliplex-chat.js   # Built widget bundle (after build)
+│   ├── soliplex-chat.js   # Built widget bundle (git-ignored; built by CI)
 │   └── soliplex-auth-callback.html # OIDC popup callback page
 ├── docs/
 │   ├── readme.md          # This file
@@ -111,7 +111,7 @@ Build a standalone JavaScript bundle that can be embedded in any website:
 npm run build:widget
 ```
 
-This creates `public/soliplex-chat.js` (~200KB minified).
+This creates `public/soliplex-chat.js` (~200KB minified). The output is git-ignored: CI builds it on every push to `main` and publishes it to GitHub Pages at `https://soliplex.github.io/chatbot/soliplex-chat.js`, and the release workflow attaches it to each GitHub release.
 
 #### Widget Build Output
 
@@ -219,10 +219,14 @@ When the AI requests a tool call:
 
 ### Styling
 
-The widget includes embedded CSS to work without external dependencies. To customize:
+The widget includes embedded CSS to work without external dependencies. All
+of it lives in `lib/theme.ts`, scoped under the `.soliplex-root` class so it
+neither leaks into nor depends on the host page.
 
-1. **Widget bundle** - Modify styles in `widget/index.tsx` `injectStyles()` function
-2. **Next.js app** - Edit `app/globals.css` and Tailwind config
+Colors, spacing, radii, and type sizes are the Soliplex design tokens (the
+`--sp-*` custom properties), copied from the design system in
+`soliplex_frontend` (`design_system/tokens.css`). Change a value there first,
+then mirror it here; do not introduce values the design system lacks.
 
 ### Adding Built-in Tools
 
@@ -247,7 +251,10 @@ function useClientTools(): ToolDefinition[] {
 
 ### Theming
 
-The widget accepts a `bubbleColor` prop. For deeper theming, modify the `ChatWidget.tsx` component or extend the configuration.
+The widget follows the visitor's OS light/dark setting by default; set
+`theme: "light"` or `theme: "dark"` to pin one. `bubbleColor` recolors the
+launcher bubble and primary buttons, and the widget picks white or near-black
+for the icon and label on top of it, whichever contrasts more.
 
 ## Troubleshooting
 
