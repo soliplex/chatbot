@@ -34,6 +34,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
 | `roomId` | string | `undefined` | Go directly to this room, skipping the room selector. Takes precedence over `roomIds` |
 | `roomIds` | string[] | `[]` | Room IDs to show; empty or omit to show all available rooms |
+| `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible, tried in order; the first accessible one wins. Ignored when `roomIds` is empty |
 | `autoHideSeconds` | number | `0` | Seconds until bubble auto-hides (0 = never hide) |
 | `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
 | `bubbleColor` | string | Soliplex primary | CSS color for the launcher bubble and primary buttons; the icon/label color on top of it is picked automatically for contrast |
@@ -72,6 +73,25 @@ The widget fetches available rooms from `GET /api/v1/rooms` when opened:
 - **`roomIds` with multiple IDs**: Shows only those rooms, user picks one
 - **`roomIds` with single ID**: Auto-selects that room, skips room selection
 - **`roomIds` with IDs not in backend**: Those rooms are filtered out
+
+#### Fallback rooms
+
+If the logged-in user can't access any of the configured `roomIds` (for example, the room is private to another group), the widget would otherwise show "No rooms available". Set `fallbackRoomIds` to name one or more rooms to use instead:
+
+```javascript
+SoliplexChat.init({
+  baseUrl: "https://api.example.com",
+  roomIds: ["search"],
+  fallbackRoomIds: ["search-lite", "chat"],  // or a single room: ["chat"]
+});
+```
+
+- The configured `roomIds` always win: fallbacks are only consulted when none of them is accessible.
+- Fallbacks are tried in order. The widget opens the first one the user can access, as a single room with no room picker or back button.
+- If no fallback is accessible either, "No rooms available" is shown.
+- Accessibility is taken from the room list the backend returns for the current user, so no extra requests are made.
+- The fallback is resolved again every time the room list is loaded. A user who was sent to a fallback room returns to the configured room as soon as they can access it again; the remembered fallback room doesn't override it.
+- With `debug: true`, the widget logs which fallback room it chose to the browser console.
 
 Once a room is selected, the header shows the room's name and a back button (if multiple rooms are available) to return to room selection.
 

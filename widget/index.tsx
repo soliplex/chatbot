@@ -17,6 +17,8 @@ interface ExternalToolConfig {
 interface WidgetInitConfig extends ChatWidgetConfig {
   tools?: ExternalToolConfig[];
   containerId?: string;
+  // Legacy support: if roomId is provided, convert to roomIds array
+  roomId?: string;
 }
 
 // Global namespace for the widget
@@ -125,11 +127,38 @@ function init(config: WidgetInitConfig) {
   // Resolve tool handlers
   const tools = config.tools ? resolveToolHandlers(config.tools) : [];
 
+  // Handle legacy roomId -> roomIds conversion
+  let roomIds = config.roomIds;
+  if (!roomIds && config.roomId) {
+    roomIds = [config.roomId];
+  }
+
+  // Normalize fallbackRoomIds to a de-duplicated list of non-empty IDs that
+  // aren't already primaries. Fallbacks only apply when roomIds is set.
+  let fallbackRoomIds: string[] | undefined;
+  if (config.fallbackRoomIds !== undefined && !Array.isArray(config.fallbackRoomIds)) {
+    console.warn("SoliplexChat: fallbackRoomIds ignored because it is not an array");
+  } else if (config.fallbackRoomIds !== undefined) {
+    const ids: string[] = [];
+    for (const id of config.fallbackRoomIds as unknown[]) {
+      if (typeof id === "string" && id !== "" && !ids.includes(id) && !roomIds?.includes(id)) {
+        ids.push(id);
+      }
+    }
+    if (ids.length > 0) {
+      if (roomIds && roomIds.length > 0) {
+        fallbackRoomIds = ids;
+      } else {
+        console.warn("SoliplexChat: fallbackRoomIds ignored because roomIds is empty");
+      }
+    }
+  }
+
   // Extract widget config
   const widgetConfig: ChatWidgetConfig = {
     baseUrl: config.baseUrl, // May be undefined - widget will show server URL prompt
-    roomId: config.roomId, // Opens this room directly, skipping the room list
-    roomIds: config.roomIds,
+    roomIds: roomIds,
+    fallbackRoomIds: fallbackRoomIds,
     autoHideSeconds: config.autoHideSeconds,
     position: config.position,
     bubbleColor: config.bubbleColor,
