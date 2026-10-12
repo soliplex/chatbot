@@ -35,6 +35,7 @@ interface RunResponse {
   thread_id: string;
   parent_run_id?: string | null;
   created: string;
+  finished?: string | null;
   run_input?: RunAgentInput | null;
   events?: unknown[];
   metadata?: Record<string, unknown> | null;
@@ -82,11 +83,12 @@ export class AGUIClient {
    * Creates a new thread. The backend also creates an initial run.
    * Returns both thread_id and the initial run_id.
    */
-  async createThread(): Promise<{ threadId: string; runId: string }> {
+  async createThread(signal?: AbortSignal): Promise<{ threadId: string; runId: string }> {
     const res = await fetch(this.baseEndpoint, {
       method: "POST",
       headers: this.buildHeaders(),
       body: JSON.stringify({}),
+      signal,
     });
     if (!res.ok) throw new Error(`Failed to create thread: ${res.status}`);
     const data: ThreadResponse = await res.json();
@@ -107,11 +109,12 @@ export class AGUIClient {
    * Creates a new run for an existing thread.
    * Only needed for subsequent messages after the first.
    */
-  async createRun(threadId: string): Promise<string> {
+  async createRun(threadId: string, signal?: AbortSignal): Promise<string> {
     const res = await fetch(`${this.baseEndpoint}/${threadId}`, {
       method: "POST",
       headers: this.buildHeaders(),
       body: JSON.stringify({}),
+      signal,
     });
     if (!res.ok) throw new Error(`Failed to create run: ${res.status}`);
     const data: RunResponse = await res.json();
@@ -119,15 +122,50 @@ export class AGUIClient {
     return data.run_id;
   }
 
+  /**
+   * Fetches a run's metadata, including its saved input (null if the run was
+   * never started) and its `finished` timestamp (null while it is running).
+   */
+  async getRun(threadId: string, runId: string, signal?: AbortSignal): Promise<RunResponse> {
+    const res = await fetch(`${this.baseEndpoint}/${threadId}/${runId}`, {
+      headers: this.buildHeaders(),
+      signal,
+    });
+    if (!res.ok) throw new Error(`Failed to get run: ${res.status}`);
+    return res.json();
+  }
+
+  /**
+   * Reconnects to a run that was started earlier, e.g. before a page reload.
+   * The backend keeps running the agent when the client disconnects and
+   * saves every event, so this replays the events after `afterIndex` (all of
+   * them by default) and keeps streaming until the run finishes.
+   */
+  resumeRun(
+    threadId: string,
+    runId: string,
+    afterIndex = -1,
+    signal?: AbortSignal
+  ): AsyncGenerator<AGUIEvent> {
+    this.threadId = threadId;
+    this.currentRunId = runId;
+    return this.streamRun(threadId, runId, {}, signal, {
+      "Last-Event-ID": `${runId}:${afterIndex}`,
+    });
+  }
+
   async *streamRun(
     threadId: string,
     runId: string,
-    input: RunAgentInput
+    input: RunAgentInput | Record<string, never>,
+    signal?: AbortSignal,
+    extraHeaders: Record<string, string> = {}
   ): AsyncGenerator<AGUIEvent> {
     const res = await fetch(`${this.baseEndpoint}/${threadId}/${runId}`, {
       method: "POST",
-      headers: this.buildHeaders(),
+      headers: { ...this.buildHeaders(), ...extraHeaders },
       body: JSON.stringify(input),
+      signal,
     });
 
     if (!res.ok) throw new Error(`Failed to stream run: ${res.status}`);
@@ -187,21 +225,26 @@ export class AGUIClient {
     console.log(`[AGUI SSE] Loop exited. Total: ${eventCount} events from ${chunkCount} chunks`);
   }
 
-  async chat(messages: ChatMessage[], tools: ToolDefinition[] = []): Promise<AsyncGenerator<AGUIEvent>> {
+  async chat(
+    messages: ChatMessage[],
+    tools: ToolDefinition[] = [],
+    signal?: AbortSignal
+  ): Promise<AsyncGenerator<AGUIEvent>> {
     let threadId: string;
     let runId: string;
 
     if (!this.threadId) {
       // First message: create thread (which includes initial run)
-      const result = await this.createThread();
+      const result = await this.createThread(signal);
       threadId = result.threadId;
       runId = result.runId;
     } else {
       // Subsequent messages: create new run for existing thread
       threadId = this.threadId;
       try {
-        runId = await this.createRun(threadId);
+        runId = await this.createRun(threadId, signal);
       } catch (err) {
+        if (signal?.aborted) throw err;
         // A restored thread may no longer exist on the server (e.g. it was
         // evicted after a page reload). Fall back to a fresh thread instead
         // of failing the whole conversation.
@@ -210,7 +253,7 @@ export class AGUIClient {
           err
         );
         this.threadId = null;
-        const result = await this.createThread();
+        const result = await this.createThread(signal);
         threadId = result.threadId;
         runId = result.runId;
       }
@@ -255,11 +298,15 @@ export class AGUIClient {
       forwarded_props: null,
     };
 
-    return this.streamRun(threadId, runId, input);
+    return this.streamRun(threadId, runId, input, signal);
   }
 
   getThreadId(): string | null {
     return this.threadId;
+  }
+
+  getCurrentRunId(): string | null {
+    return this.currentRunId;
   }
 
   setThreadId(id: string) {
