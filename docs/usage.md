@@ -42,7 +42,7 @@ If you omit `baseUrl`, the widget will prompt the user to enter a server URL whe
 | `title` | string | `"Chat with us"` | Title shown in the chat header (room selector screen) |
 | `placeholder` | string | `"Ask me anything..."` | Message shown in an empty chat. Overrides the room's welcome message, which is used when this is unset |
 | `noRoomsMessage` | string | `"No rooms available"` | Text shown when the user can't access any room: none of the `roomIds` or `fallbackRoomIds` are accessible, or the server returned no rooms. Rendered as plain text |
-| `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
+| `persist` | boolean | `true` | Save the thread id, message history, open state, and selected room in `localStorage` so the widget reopens in the same room and the conversation resumes after a page reload. A reply still streaming when the page is left is picked up again on the next page, and a client-side tool call in it runs there. Use the header's **Start new conversation** button (or set to `false`) to start fresh |
 | `debug` | boolean | `false` | Render raw client-side tool-call results as JSON in the chat |
 | `tools` | array | `[]` | Custom client-side tools (see below) |
 | `containerId` | string | `"soliplex-chat-widget"` | DOM element ID for the widget container |
@@ -748,3 +748,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 ```
+
+If a proxy in front of the backend sets the CORS headers itself, its `Access-Control-Allow-Headers` must include `Authorization`, `Content-Type` and `Last-Event-ID`. The widget sends `Last-Event-ID` to reconnect to a reply that was still streaming when the page was left.
