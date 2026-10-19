@@ -89,6 +89,7 @@ Navigate to `http://localhost:3000` to see the standalone chat interface.
 | `npm run build` | Build Next.js app for production |
 | `npm run start` | Start production Next.js server |
 | `npm run lint` | Run ESLint |
+| `npm test` | Run the vitest suite |
 | `npm run build:widget` | Build embeddable widget bundle |
 | `npm run build:widget:watch` | Build widget with watch mode |
 

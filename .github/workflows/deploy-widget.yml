@@ -13,6 +13,7 @@ on:
       - 'package.json'
       - 'package-lock.json'
       - 'tsconfig.json'
+      - 'vitest.config.ts'
       - '.github/workflows/deploy-widget.yml'
 
 permissions:
@@ -39,6 +40,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run tests
+        run: npm test
 
       - name: Build widget
         run: npm run build:widget
