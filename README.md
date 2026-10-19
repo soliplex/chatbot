@@ -13,6 +13,9 @@ npm install
 # Start development server
 npm run dev
 
+# Run the tests
+npm test
+
 # Build embeddable widget
 npm run build:widget
 ```
