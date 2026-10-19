@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
-import { parseSimpleMarkdown } from "./Chat";
+import { parseSimpleMarkdown } from "./markdown";
 
 const render = (reply: string) => {
   const div = document.createElement("div");
