@@ -145,7 +145,7 @@ function parseInlineMarkdown(text: string, anchors: string[]): string {
   return text
     // Markdown links: [text](url) with an optional "title"
     .replace(
-      /\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;.*?&quot;)?\)/g,
+      /\[([^\]]+)\]\(((?:[^()\s]|\([^()\s]*\))+)(?:\s+&quot;.*?&quot;)?\)/g,
       (_m, label, url) => `${open(url)}${label}</a>`
     )
     // Bare URLs
