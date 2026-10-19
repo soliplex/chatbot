@@ -119,7 +119,8 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -136,20 +137,19 @@ function sanitizeUrl(url: string): string {
 /**
  * Inline markdown (links, emphasis) for a single, already HTML-escaped line.
  */
-function parseInlineMarkdown(text: string): string {
+function parseInlineMarkdown(text: string, anchors: string[]): string {
+  const open = (url: string) => {
+    anchors.push(`<a href="${sanitizeUrl(url)}" target="_blank" rel="noopener noreferrer">`);
+    return `\u0000A${anchors.length - 1}\u0000`;
+  };
   return text
     // Markdown links: [text](url) with an optional "title"
     .replace(
-      /\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g,
-      (_m, label, url) =>
-        `<a href="${sanitizeUrl(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+      /\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;.*?&quot;)?\)/g,
+      (_m, label, url) => `${open(url)}${label}</a>`
     )
-    // Bare URLs (not already inside an href="...") become links
-    .replace(
-      /(^|[\s(])(https?:\/\/[^\s<]+)/g,
-      (_m, pre, url) =>
-        `${pre}<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
-    )
+    // Bare URLs
+    .replace(/(^|[\s(])(https?:\/\/[^\s<]+)/g, (_m, pre, url) => `${pre}${open(url)}${url}</a>`)
     // Bold
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/__([^_]+)__/g, "<strong>$1</strong>")
@@ -163,9 +163,10 @@ function parseInlineMarkdown(text: string): string {
  * HTML-escaped, and block-level constructs (headings, lists) are parsed line
  * by line before inline markdown is applied.
  */
-function parseSimpleMarkdown(text: string): string {
+export function parseSimpleMarkdown(text: string): string {
   const codeBlocks: string[] = [];
-  let src = text.replace(
+  const anchors: string[] = [];
+  let src = text.replace(/\u0000/g, "").replace(
     /```(\w*)\n?([\s\S]*?)```/g,
     (_m, _lang, code) => {
       codeBlocks.push(`<pre><code>${escapeHtml(code)}</code></pre>`);
@@ -198,21 +199,21 @@ function parseSimpleMarkdown(text: string): string {
     if (heading) {
       closeList();
       const level = heading[1].length;
-      out.push(`<h${level}>${parseInlineMarkdown(heading[2])}</h${level}>`);
+      out.push(`<h${level}>${parseInlineMarkdown(heading[2], anchors)}</h${level}>`);
     } else if (ulItem) {
       if (listType !== "ul") {
         closeList();
         out.push("<ul>");
         listType = "ul";
       }
-      out.push(`<li>${parseInlineMarkdown(ulItem[1])}</li>`);
+      out.push(`<li>${parseInlineMarkdown(ulItem[1], anchors)}</li>`);
     } else if (olItem) {
       if (listType !== "ol") {
         closeList();
         out.push("<ol>");
         listType = "ol";
       }
-      out.push(`<li>${parseInlineMarkdown(olItem[1])}</li>`);
+      out.push(`<li>${parseInlineMarkdown(olItem[1], anchors)}</li>`);
     } else if (line.trim() === "") {
       closeList();
       out.push("");
@@ -222,7 +223,7 @@ function parseSimpleMarkdown(text: string): string {
       out.push(line);
     } else {
       closeList();
-      out.push(`${parseInlineMarkdown(line)}<br />`);
+      out.push(`${parseInlineMarkdown(line, anchors)}<br />`);
     }
   }
   closeList();
@@ -230,6 +231,7 @@ function parseSimpleMarkdown(text: string): string {
   let html = out.join("\n");
   html = html.replace(/\u0000ICODE(\d+)\u0000/g, (_m, i) => inlineCodes[+i]);
   html = html.replace(/\u0000CODE(\d+)\u0000/g, (_m, i) => codeBlocks[+i]);
+  html = html.replace(/\u0000A(\d+)\u0000/g, (_m, i) => anchors[+i]);
   return html;
 }
 
