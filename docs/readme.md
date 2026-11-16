@@ -41,7 +41,7 @@ A React-based embeddable chat widget that connects to a Soliplex/PydanticAI back
 
 - Node.js 18+
 - npm or yarn
-- A running Soliplex backend (default: `http://localhost:8000`)
+- A running Soliplex backend (default: `http://localhost:9000`, the [soliplex-template](https://github.com/soliplex/soliplex-template) stack)
 
 ## Development Setup
 
@@ -57,7 +57,7 @@ Create a `.env.local` file:
 
 ```bash
 # Backend API URL
-NEXT_PUBLIC_AGUI_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_AGUI_BASE_URL=http://localhost:9000
 ```
 
 ### 3. Start Development Server
@@ -70,12 +70,12 @@ This starts the Next.js development server at `http://localhost:3000`.
 
 ### 4. Start the Backend
 
-In a separate terminal, start your Soliplex backend:
-
-```bash
-cd /path/to/soliplex
-uvicorn soliplex.main:app --reload --port 8000
-```
+Run a Soliplex backend with the
+[soliplex-template](https://github.com/soliplex/soliplex-template) Docker
+Compose stack (see its "Try it" section and
+[documentation](https://soliplex.github.io/soliplex-template/)). The stack
+serves the API through nginx at `http://localhost:9000`, the URL set in
+`.env.local` above.
 
 ### 5. Open in Browser
 

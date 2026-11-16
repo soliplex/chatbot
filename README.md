@@ -54,22 +54,11 @@ The widget will:
 
 ## Configuration Options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `baseUrl` | string | `undefined` | Backend API URL. If omitted, the widget prompts the user for a server URL |
-| `roomId` | string | `undefined` | Single room ID - skip room selection and go directly to this room (takes precedence over `roomIds`) |
-| `roomIds` | string[] | `undefined` | Optional list of room IDs to show (filters the available rooms) |
-| `fallbackRoomIds` | string[] | `undefined` | Room(s) to use when none of the `roomIds` are accessible to the user, tried in order; the first accessible one wins. Ignored without `roomIds` |
-| `title` | string | `"Chat with us"` | Chat header title |
-| `placeholder` | string | `"Ask me anything..."` | Empty state message; overrides the room's welcome message |
-| `noRoomsMessage` | string | `"No rooms available"` | Text shown when the user can't access any room (none of `roomIds` or `fallbackRoomIds`, or the server returned none). Plain text |
-| `bubbleColor` | string | Soliplex primary | Accent for the launcher bubble and primary buttons; the icon/label color is picked automatically for contrast |
-| `theme` | string | `"auto"` | `"light"`, `"dark"`, or `"auto"` (follows the visitor's OS setting) |
-| `position` | string | `"bottom-right"` | `"bottom-right"` or `"bottom-left"` |
-| `autoHideSeconds` | number | `0` | Auto-hide delay (0 = never) |
-| `tools` | array | `[]` | Custom client-side tools |
-
-**Note:** If `roomId` is set, the widget will skip the room selector and go directly to the specified room after authentication (if auth is enabled). If none of the configured rooms are accessible to the logged-in user, the widget opens the first accessible room from `fallbackRoomIds` instead, without a room picker; with no accessible fallback it shows "No rooms available", or the `noRoomsMessage` text if set.
+The widget takes options for room selection (`roomId`, `roomIds`,
+`fallbackRoomIds`), appearance (`title`, `bubbleColor`, `theme`, `position`),
+persistence, and client-side `tools`. See
+[Configuration Options](docs/usage.md#configuration-options) in the usage
+guide for the full reference.
 
 ## Authentication
 
@@ -105,19 +94,25 @@ auth_systems:
         -----END PUBLIC KEY-----
 ```
 
-## Development with Docker
+## Running a Backend Locally
 
-For local testing with the nginx proxy (handles CORS and auth redirects):
+The widget needs a running Soliplex backend. The quickest way to get one is
+the [soliplex-template](https://github.com/soliplex/soliplex-template) Docker
+Compose stack: follow its "Try it" section, and see its
+[documentation](https://soliplex.github.io/soliplex-template/) for ports,
+authentication, and configuring rooms. The stack serves the API through nginx
+at `http://localhost:9000`, which is the backend the demo page uses.
+
+Then build the widget and serve the demo page:
 
 ```bash
-docker compose up
+npm run build:widget:watch
+
+# In another terminal
+cd public
+python -m http.server 8080
+# Open http://localhost:8080/
 ```
-
-This starts:
-- `soliplex_backend` on port 8000
-- `chatbot_widget` (nginx) on port 8080 serving the widget files
-
-Access the widget at `http://localhost:8080`
 
 ## Documentation
 

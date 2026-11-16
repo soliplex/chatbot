@@ -60,11 +60,6 @@ The provided tools are: `plone_get_current_user`,
 
 ### Adding the `@logged-in-user` endpoint
 
-A minimal implementation registers a GET service on the site root. A complete,
-working example lives at
-`/trabajo/runyan/ESP/ploud/backend/sources/esp-library/src/esp/library/restapi`
-— reproduced here:
-
 ```python
 # logged_in_user.py
 from plone import api

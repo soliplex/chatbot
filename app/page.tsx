@@ -8,7 +8,7 @@ const ChatWidget = dynamic(() => import("@/components/ChatWidget"), {
 });
 
 export default function Home() {
-  const baseUrl = process.env.NEXT_PUBLIC_AGUI_BASE_URL || "http://localhost:8000";
+  const baseUrl = process.env.NEXT_PUBLIC_AGUI_BASE_URL || "http://localhost:9000";
 
   return (
     <main style={{ width: "100vw", height: "100vh" }}>

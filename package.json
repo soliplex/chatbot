@@ -1,5 +1,5 @@
 {
-  "name": "chatbot-copilotkit",
+  "name": "soliplex-chat",
   "version": "0.4.0",
   "private": true,
   "scripts": {
@@ -12,8 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@copilotkit/react-core": "^1.10.6",
-    "@copilotkit/react-ui": "^1.10.6",
     "next": "^14.2.0",
     "react": "^18.3.0",
     "react-dom": "^18.3.0"
